@@ -32,18 +32,19 @@ func main() {
 	if len(y) <= 0 {
 		y, err = ioutil.ReadFile(*confPath)
 		if err != nil {
-			log.Fatalf("failed to load configuration from: %v", confPath)
+			log.WithError(err).WithField("config", confPath).Fatal("Failed to load configuration")
 		}
 	}
 
 	err = yaml.Unmarshal(y, &config)
 	if err != nil {
-		log.Fatalf("failed to unmarshal yaml: %v", err.Error())
+		log.WithError(err).Fatal("Failed to unmarshal yaml")
 	}
 
 	for an, app := range config.Applications {
+		l := log.WithField("application", an)
 		for sn, service := range app.Services {
-			log.Infof("Starting checks for service %v in app %v.", sn, an)
+			l.WithField("service", sn).Info("Starting checks")
 			go func(s updog.Service) {
 				s.StartChecks()
 			}(service)

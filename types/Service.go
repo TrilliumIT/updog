@@ -39,7 +39,7 @@ func (s *Service) StartChecks() {
 			//case "http_response":
 			//	go s.CheckHttpResponse(addr)
 		default:
-			log.Errorf("Encountered unknown service type: %v for address: %v.", s.Stype, addr)
+			log.WithField("type", s.Stype).WithField("address", addr).Error("Unknown service type")
 		}
 	}
 
@@ -47,11 +47,12 @@ Status:
 	for {
 		select {
 		case st := <-s.updates:
-			log.Debugf("Recieved status: %v.", st)
+			l := log.WithField("status", st)
+			l.Debug("Recieved status")
 			var i *Instance
 			var ok bool
 			if i, ok = s.instances[st.address]; !ok {
-				log.Warn("Recieved a status update for an unknown instance: %v.", st)
+				l.Warn("Recieved status update for unknown instance")
 				break Status
 			}
 			i.up = st.up
@@ -81,14 +82,14 @@ func (s *Service) isDegraded() bool {
 }
 
 func (s *Service) CheckTcp(addr string) {
-	log.Debugf("Starting CheckTcp() for %v.", addr)
+	log.WithField("address", addr).Debug("Starting CheckTcp")
 
 	var start time.Time
 	t := time.NewTicker(time.Duration(s.Interval))
 	for {
 		start = time.Now()
 		conn, err := net.DialTimeout("tcp", addr, time.Duration(s.Interval))
-		s.updates <- &Status{address: addr, up: err == nil, responseTime: time.Now().Sub(start).Seconds() * 1000}
+		s.updates <- &Status{address: addr, up: err == nil, responseTime: time.Now().Sub(start)}
 		if err == nil {
 			conn.Close()
 		}
@@ -97,7 +98,7 @@ func (s *Service) CheckTcp(addr string) {
 }
 
 func (s *Service) CheckHttp(addr string) {
-	log.Debugf("Starting CheckHttp() for %v.", addr)
+	log.WithField("address", addr).Debug("Starting CheckHttp")
 
 	var up bool
 	var start time.Time
@@ -113,7 +114,7 @@ func (s *Service) CheckHttp(addr string) {
 			}
 			resp.Body.Close()
 		}
-		s.updates <- &Status{address: addr, up: up, responseTime: time.Now().Sub(start).Seconds() * 1000}
+		s.updates <- &Status{address: addr, up: up, responseTime: time.Now().Sub(start)}
 		<-t.C
 	}
 }

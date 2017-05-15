@@ -1,7 +1,9 @@
 package updog
 
+import "time"
+
 type Instance struct {
 	address      string
 	up           bool
-	responseTime float64
+	responseTime time.Duration
 }

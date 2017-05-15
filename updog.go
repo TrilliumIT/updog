@@ -2,13 +2,14 @@ package main
 
 import (
 	"flag"
-	"github.com/TrilliumIT/updog/types"
-	"github.com/ghodss/yaml"
-	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/TrilliumIT/updog/types"
+	"github.com/ghodss/yaml"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -62,7 +63,7 @@ func main() {
 				for sn, s := range app.Services {
 					l := l.WithField("service", sn)
 					l.Debug("Checking service")
-					go func(s *updog.Service, l *log.Entry) {
+					go func(s *updog.CheckHTTP, l *log.Entry) {
 						for in, i := range s.GetInstances() {
 							l.WithFields(log.Fields{
 								"instance":      in,

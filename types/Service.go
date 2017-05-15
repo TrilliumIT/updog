@@ -32,9 +32,9 @@ func (s *Service) StartChecks() {
 	for addr := range s.instances {
 		switch s.Stype {
 		case "tcp_connect":
-			go s.CheckTcp(addr)
+			go s.CheckTCP(addr)
 		case "http_status":
-			go s.CheckHttp(addr)
+			go s.CheckHTTP(addr)
 			//TODO
 			//case "tcp_response":
 			//	go s.CheckTcpResponse(addr)
@@ -82,7 +82,7 @@ func (s *Service) isUp() bool {
 	fails := 0
 	for _, i := range s.instances {
 		if !i.Up {
-			fails += 1
+			fails++
 		}
 	}
 	return fails <= s.MaxFailures
@@ -92,13 +92,13 @@ func (s *Service) isDegraded() bool {
 	fails := 0
 	for _, i := range s.instances {
 		if !i.Up {
-			fails += 1
+			fails++
 		}
 	}
 	return fails > 0
 }
 
-func (s *Service) CheckTcp(addr string) {
+func (s *Service) CheckTCP(addr string) {
 	log.WithField("address", addr).Debug("Starting CheckTcp")
 
 	var start time.Time
@@ -114,7 +114,7 @@ func (s *Service) CheckTcp(addr string) {
 	}
 }
 
-func (s *Service) CheckHttp(addr string) {
+func (s *Service) CheckHTTP(addr string) {
 	log.WithField("address", addr).Debug("Starting CheckHttp")
 
 	var up bool

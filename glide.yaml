@@ -1,0 +1,4 @@
+package: github.com/TrilliumIT/updog
+import:
+- package: github.com/ghodss/yaml
+- package: github.com/sirupsen/logrus

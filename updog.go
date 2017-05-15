@@ -1,25 +1,31 @@
 package main
 
 import (
+	"flag"
 	"github.com/TrilliumIT/updog/types"
 	"github.com/ghodss/yaml"
+	log "github.com/sirupsen/logrus"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
+)
+
+var (
+	config *updog.Config
 )
 
 func main() {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
-	y, err := ioutil.ReadFile("config.yaml")
-	if err != nil {
-		log.Fatal("failed to load config.yaml")
-	}
+	var confPath = flag.String("config", "config.yaml", "path to configuration file")
+	flag.Parse()
 
-	var config updog.Config
+	y, err := ioutil.ReadFile(*confPath)
+	if err != nil {
+		log.Fatalf("failed to load configuration from: %v", confPath)
+	}
 
 	err = yaml.Unmarshal(y, &config)
 	if err != nil {
@@ -28,12 +34,14 @@ func main() {
 
 	for an, app := range config.Applications {
 		for sn, service := range app.Services {
-			log.Printf("Starting checks for service %v in app %v.\n", sn, an)
+			log.Infof("Starting checks for service %v in app %v.", sn, an)
 			go func(s updog.Service) {
 				s.StartChecks()
 			}(service)
 		}
 	}
+
+	//TODO: start up the http dashboard
 
 	log.Println("Waiting for signal...")
 	<-sigs

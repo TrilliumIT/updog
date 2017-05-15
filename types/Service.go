@@ -1,7 +1,7 @@
 package updog
 
 import (
-	"log"
+	log "github.com/sirupsen/logrus"
 	"net"
 	"net/http"
 	"time"
@@ -42,14 +42,14 @@ func (s *Service) StartChecks() {
 			//case "http_response":
 			//	go s.CheckHttpResponse(addr)
 		default:
-			log.Println("Encountered unknown service type: %v for address: %v.\n", s.Stype, addr)
+			log.Errorf("Encountered unknown service type: %v for address: %v.", s.Stype, addr)
 		}
 	}
 
 	for {
 		select {
 		case r := <-s.updates:
-			log.Printf("Recieved update: %v.\n", r)
+			log.Debugf("Recieved update: %v.", r)
 			s.instances[r.address] = r.up
 		}
 	}
@@ -76,7 +76,7 @@ func (s *Service) isDegraded() bool {
 }
 
 func (s *Service) CheckTcp(addr string) {
-	log.Printf("Starting CheckTcp() for %v.\n", addr)
+	log.Debugf("Starting CheckTcp() for %v.", addr)
 	t := time.NewTicker(time.Duration(s.Interval))
 	for {
 		conn, err := net.DialTimeout("tcp", addr, time.Duration(s.Interval))
@@ -89,7 +89,7 @@ func (s *Service) CheckTcp(addr string) {
 }
 
 func (s *Service) CheckHttp(addr string) {
-	log.Printf("Starting CheckHttp() for %v.\n", addr)
+	log.Debugf("Starting CheckHttp() for %v.", addr)
 	t := time.NewTicker(time.Duration(s.Interval))
 	for {
 		up := false

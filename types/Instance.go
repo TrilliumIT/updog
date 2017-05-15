@@ -4,6 +4,6 @@ import "time"
 
 type Instance struct {
 	address      string
-	up           bool
-	responseTime time.Duration
+	Up           bool
+	ResponseTime time.Duration
 }

@@ -18,7 +18,7 @@ var (
 func main() {
 	var err error
 	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 
 	var confPath = flag.String("config", "config.yaml", "path to configuration file")
 	var debug = flag.Bool("debug", false, "debug logging")
@@ -45,14 +45,36 @@ func main() {
 		l := log.WithField("application", an)
 		for sn, service := range app.Services {
 			l.WithField("service", sn).Info("Starting checks")
-			go func(s updog.Service) {
-				s.StartChecks()
-			}(service)
+			go service.StartChecks()
 		}
 	}
 
 	//TODO: start up the http dashboard
 
 	log.Println("Waiting for signal...")
-	<-sigs
+	for s := range sigs {
+		log.Debug("Signal Recieved")
+		switch s {
+		case syscall.SIGHUP:
+			for an, app := range config.Applications {
+				l := log.WithField("application", an)
+				l.Debug("Looping services")
+				for sn, s := range app.Services {
+					l := l.WithField("service", sn)
+					l.Debug("Checking service")
+					go func(s *updog.Service, l *log.Entry) {
+						for in, i := range s.GetInstances() {
+							l.WithFields(log.Fields{
+								"instance":      in,
+								"up":            i.Up,
+								"response time": i.ResponseTime,
+							}).Info("Instance Status")
+						}
+					}(s, l)
+				}
+			}
+		default:
+			return
+		}
+	}
 }

@@ -9,6 +9,6 @@ const (
 )
 
 type Application struct {
-	Services map[string]Service `json:"services"`
+	Services map[string]*Service `json:"services"`
 	state    ServiceState
 }

@@ -10,17 +10,19 @@ import (
 type Status Instance
 
 type Service struct {
-	Instances   []string `json:"instances"`
-	MaxFailures int      `json:"maxFailures"`
-	Stype       string   `json:"type"`
-	Interval    Interval `json:"interval"`
-	instances   map[string]*Instance
-	faults      int
-	updates     chan *Status
+	Instances    []string `json:"instances"`
+	MaxFailures  int      `json:"maxFailures"`
+	Stype        string   `json:"type"`
+	Interval     Interval `json:"interval"`
+	instances    map[string]*Instance
+	faults       int
+	updates      chan *Status
+	getInstances chan chan<- map[string]*Instance
 }
 
 func (s *Service) StartChecks() {
 	s.updates = make(chan *Status)
+	s.getInstances = make(chan chan<- map[string]*Instance)
 
 	s.instances = make(map[string]*Instance)
 	for _, i := range s.Instances {
@@ -55,16 +57,31 @@ Status:
 				l.Warn("Recieved status update for unknown instance")
 				break Status
 			}
-			i.up = st.up
-			i.responseTime = st.responseTime
+			i.Up = st.Up
+			i.ResponseTime = st.ResponseTime
+		case gi := <-s.getInstances:
+			log.Debug("Instances requested")
+			r := make(map[string]*Instance)
+			for k, v := range s.instances {
+				r[k] = v
+			}
+			gi <- r
 		}
 	}
+}
+
+func (s *Service) GetInstances() map[string]*Instance {
+	rc := make(chan map[string]*Instance)
+	log.Debug("Sending update request")
+	s.getInstances <- rc
+	log.Debug("Waiting on return")
+	return <-rc
 }
 
 func (s *Service) isUp() bool {
 	fails := 0
 	for _, i := range s.instances {
-		if !i.up {
+		if !i.Up {
 			fails += 1
 		}
 	}
@@ -74,7 +91,7 @@ func (s *Service) isUp() bool {
 func (s *Service) isDegraded() bool {
 	fails := 0
 	for _, i := range s.instances {
-		if !i.up {
+		if !i.Up {
 			fails += 1
 		}
 	}
@@ -89,7 +106,7 @@ func (s *Service) CheckTcp(addr string) {
 	for {
 		start = time.Now()
 		conn, err := net.DialTimeout("tcp", addr, time.Duration(s.Interval))
-		s.updates <- &Status{address: addr, up: err == nil, responseTime: time.Now().Sub(start)}
+		s.updates <- &Status{address: addr, Up: err == nil, ResponseTime: time.Now().Sub(start)}
 		if err == nil {
 			conn.Close()
 		}
@@ -114,7 +131,7 @@ func (s *Service) CheckHttp(addr string) {
 			}
 			resp.Body.Close()
 		}
-		s.updates <- &Status{address: addr, up: up, responseTime: time.Now().Sub(start)}
+		s.updates <- &Status{address: addr, Up: up, ResponseTime: time.Now().Sub(start)}
 		<-t.C
 	}
 }

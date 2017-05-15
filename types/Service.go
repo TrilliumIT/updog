@@ -2,12 +2,8 @@ package updog
 
 import (
 	log "github.com/sirupsen/logrus"
-	"net"
-	"net/http"
 	"time"
 )
-
-type Status Instance
 
 type Service struct {
 	Instances    []string `json:"instances"`
@@ -26,15 +22,15 @@ func (s *Service) StartChecks() {
 
 	s.instances = make(map[string]*Instance)
 	for _, i := range s.Instances {
-		s.instances[i] = &Instance{address: i}
+		s.instances[i] = &Instance{Status: Status{address: i}, update: s.updates}
 	}
 
-	for addr := range s.instances {
+	for addr, inst := range s.instances {
 		switch s.Stype {
 		case "tcp_connect":
-			go s.CheckTCP(addr)
+			go inst.CheckTCP(time.Duration(s.Interval))
 		case "http_status":
-			go s.CheckHTTP(addr)
+			go inst.CheckHTTP(time.Duration(s.Interval))
 			//TODO
 			//case "tcp_response":
 			//	go s.CheckTcpResponse(addr)
@@ -96,42 +92,4 @@ func (s *Service) isDegraded() bool {
 		}
 	}
 	return fails > 0
-}
-
-func (s *Service) CheckTCP(addr string) {
-	log.WithField("address", addr).Debug("Starting CheckTcp")
-
-	var start time.Time
-	t := time.NewTicker(time.Duration(s.Interval))
-	for {
-		start = time.Now()
-		conn, err := net.DialTimeout("tcp", addr, time.Duration(s.Interval))
-		s.updates <- &Status{address: addr, Up: err == nil, ResponseTime: time.Now().Sub(start)}
-		if err == nil {
-			conn.Close()
-		}
-		<-t.C
-	}
-}
-
-func (s *Service) CheckHTTP(addr string) {
-	log.WithField("address", addr).Debug("Starting CheckHttp")
-
-	var up bool
-	var start time.Time
-	client := http.Client{Timeout: time.Duration(s.Interval)}
-	t := time.NewTicker(time.Duration(s.Interval))
-	for {
-		up = false
-		start = time.Now()
-		resp, err := client.Head(addr)
-		if err == nil {
-			if resp.StatusCode >= 200 && resp.StatusCode <= 399 {
-				up = true
-			}
-			resp.Body.Close()
-		}
-		s.updates <- &Status{address: addr, Up: up, ResponseTime: time.Now().Sub(start)}
-		<-t.C
-	}
 }

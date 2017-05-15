@@ -44,6 +44,7 @@ func main() {
 
 	for an, app := range config.Applications {
 		l := log.WithField("application", an)
+		app.Name = an
 		for sn, service := range app.Services {
 			l.WithField("service", sn).Info("Starting checks")
 			go service.StartChecks()

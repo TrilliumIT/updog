@@ -10,5 +10,6 @@ const (
 
 type Application struct {
 	Services map[string]*Service `json:"services"`
+	Name     string
 	state    ServiceState
 }

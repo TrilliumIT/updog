@@ -7,27 +7,24 @@ import (
 	"time"
 )
 
-type Result struct {
-	address string
-	up      bool
-}
+type Status Instance
 
 type Service struct {
 	Instances   []string `json:"instances"`
 	MaxFailures int      `json:"maxFailures"`
 	Stype       string   `json:"type"`
 	Interval    Interval `json:"interval"`
-	instances   map[string]bool
+	instances   map[string]*Instance
 	faults      int
-	updates     chan *Result
+	updates     chan *Status
 }
 
 func (s *Service) StartChecks() {
-	s.updates = make(chan *Result)
+	s.updates = make(chan *Status)
 
-	s.instances = make(map[string]bool)
+	s.instances = make(map[string]*Instance)
 	for _, i := range s.Instances {
-		s.instances[i] = false
+		s.instances[i] = &Instance{address: i}
 	}
 
 	for addr := range s.instances {
@@ -46,11 +43,19 @@ func (s *Service) StartChecks() {
 		}
 	}
 
+Status:
 	for {
 		select {
-		case r := <-s.updates:
-			log.Debugf("Recieved update: %v.", r)
-			s.instances[r.address] = r.up
+		case st := <-s.updates:
+			log.Debugf("Recieved status: %v.", st)
+			var i *Instance
+			var ok bool
+			if i, ok = s.instances[st.address]; !ok {
+				log.Warn("Recieved a status update for an unknown instance: %v.", st)
+				break Status
+			}
+			i.up = st.up
+			i.responseTime = st.responseTime
 		}
 	}
 }
@@ -58,7 +63,7 @@ func (s *Service) StartChecks() {
 func (s *Service) isUp() bool {
 	fails := 0
 	for _, i := range s.instances {
-		if !i {
+		if !i.up {
 			fails += 1
 		}
 	}
@@ -68,7 +73,7 @@ func (s *Service) isUp() bool {
 func (s *Service) isDegraded() bool {
 	fails := 0
 	for _, i := range s.instances {
-		if !i {
+		if !i.up {
 			fails += 1
 		}
 	}
@@ -77,10 +82,13 @@ func (s *Service) isDegraded() bool {
 
 func (s *Service) CheckTcp(addr string) {
 	log.Debugf("Starting CheckTcp() for %v.", addr)
+
+	var start time.Time
 	t := time.NewTicker(time.Duration(s.Interval))
 	for {
+		start = time.Now()
 		conn, err := net.DialTimeout("tcp", addr, time.Duration(s.Interval))
-		s.updates <- &Result{address: addr, up: err == nil}
+		s.updates <- &Status{address: addr, up: err == nil, responseTime: time.Now().Sub(start).Seconds() * 1000}
 		if err == nil {
 			conn.Close()
 		}
@@ -90,10 +98,14 @@ func (s *Service) CheckTcp(addr string) {
 
 func (s *Service) CheckHttp(addr string) {
 	log.Debugf("Starting CheckHttp() for %v.", addr)
+
+	var up bool
+	var start time.Time
+	client := http.Client{Timeout: time.Duration(s.Interval)}
 	t := time.NewTicker(time.Duration(s.Interval))
 	for {
-		up := false
-		client := http.Client{Timeout: time.Duration(s.Interval)}
+		up = false
+		start = time.Now()
 		resp, err := client.Head(addr)
 		if err == nil {
 			if resp.StatusCode >= 200 && resp.StatusCode <= 399 {
@@ -101,7 +113,7 @@ func (s *Service) CheckHttp(addr string) {
 			}
 			resp.Body.Close()
 		}
-		s.updates <- &Result{address: addr, up: up}
+		s.updates <- &Status{address: addr, up: up, responseTime: time.Now().Sub(start).Seconds() * 1000}
 		<-t.C
 	}
 }

@@ -16,15 +16,24 @@ var (
 )
 
 func main() {
+	var err error
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	var confPath = flag.String("config", "config.yaml", "path to configuration file")
+	var debug = flag.Bool("debug", false, "debug logging")
 	flag.Parse()
 
-	y, err := ioutil.ReadFile(*confPath)
-	if err != nil {
-		log.Fatalf("failed to load configuration from: %v", confPath)
+	if *debug {
+		log.SetLevel(log.DebugLevel)
+	}
+
+	y := []byte(os.Getenv("UPDOG_CONFIG_YAML"))
+	if len(y) <= 0 {
+		y, err = ioutil.ReadFile(*confPath)
+		if err != nil {
+			log.Fatalf("failed to load configuration from: %v", confPath)
+		}
 	}
 
 	err = yaml.Unmarshal(y, &config)

@@ -7,11 +7,11 @@ applications:
         interval: 60s
         type: tcp_connect
         instances:
-          "zookeeper1.example.com:2181": False
-          "zookeeper2.example.com:2181": False
-          "zookeeper3.example.com:2181": False
-          "zookeeper4.example.com:2181": False
-          "zookeeper5.example.com:2181": False
+          - "zookeeper1.example.com:2181"
+          - "zookeeper2.example.com:2181"
+          - "zookeeper3.example.com:2181"
+          - "zookeeper4.example.com:2181"
+          - "zookeeper5.example.com:2181"
   hdfs:
     services:
       journalnode:
@@ -19,25 +19,25 @@ applications:
         interval: 60s
         type: http_status
         instances:
-          "http://hdfs-journalnode1.example.com:8480": False
-          "http://hdfs-journalnode2.example.com:8480": False
-          "http://hdfs-journalnode3.example.com:8480": False
-          "http://hdfs-journalnode4.example.com:8480": False
-          "http://hdfs-journalnode5.example.com:8480": False
+          - "http://hdfs-journalnode1.example.com:8480"
+          - "http://hdfs-journalnode2.example.com:8480"
+          - "http://hdfs-journalnode3.example.com:8480"
+          - "http://hdfs-journalnode4.example.com:8480"
+          - "http://hdfs-journalnode5.example.com:8480"
       namenode:
         maxFailures: 1
         interval: 60s
         type: http_status
         instances:
-          "http://hdfs-namenode1.example.com:50070": False
-          "http://hdfs-namenode2.example.com:50070": False
+          - "http://hdfs-namenode1.example.com:50070"
+          - "http://hdfs-namenode2.example.com:50070"
       datanode:
         maxFailures: 2
         interval: 60s
         type: http_status
         instances:
-          "http://hdfs-datanode1.example.com:50075": False
-          "http://hdfs-datanode2.example.com:50075": False
-          "http://hdfs-datanode3.example.com:50075": False
-          "http://hdfs-datanode4.example.com:50075": False
-          "http://hdfs-datanode5.example.com:50075": False
+          - "http://hdfs-datanode1.example.com:50075"
+          - "http://hdfs-datanode2.example.com:50075"
+          - "http://hdfs-datanode3.example.com:50075"
+          - "http://hdfs-datanode4.example.com:50075"
+          - "http://hdfs-datanode5.example.com:50075"

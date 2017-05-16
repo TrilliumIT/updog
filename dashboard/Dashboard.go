@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	updog "github.com/TrilliumIT/updog/types"
 	log "github.com/sirupsen/logrus"
@@ -40,12 +41,15 @@ func (d *Dashboard) apiHandler(w http.ResponseWriter, r *http.Request) {
 	if len(parts) > 0 {
 		switch parts[0] {
 		case "applications":
-			b, err := json.Marshal(d.applications.GetApplicationStatus())
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Content-Encoding", "gzip")
+			gz := gzip.NewWriter(w)
+			defer gz.Close()
+			err := json.NewEncoder(gz).Encode(d.applications.GetApplicationStatus())
 			if err != nil {
-				http.Error(w, "Failed to marshal json", 500)
+				http.Error(w, "Failed to encode json", 500)
 				return
 			}
-			w.Write(b)
 		default:
 			http.NotFound(w, r)
 			return
@@ -69,5 +73,9 @@ func (d *Dashboard) rootHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Write(a)
+	gz := gzip.NewWriter(w)
+	defer gz.Close()
+	w.Header().Set("Content-Encoding", "gzip")
+	w.Header().Set("Content-Type", http.DetectContentType(a))
+	gz.Write(a)
 }

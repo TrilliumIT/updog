@@ -3,34 +3,28 @@ package types
 type Application struct {
 	Services map[string]*Service `json:"services"`
 	Name     string
-	state    ServiceState
 }
 
 type ApplicationStatus struct {
-	Services map[string]struct {
-		Instances map[string]Status
-	}
+	Services map[string]ServiceStatus
 }
 
 func (app *Application) GetStatus() *ApplicationStatus {
 	type statusUpdate struct {
 		sn     string
-		status map[string]Status
+		status ServiceStatus
 	}
 	rc := make(chan statusUpdate)
 	defer close(rc)
 	for sn, s := range app.Services {
 		go func(sn string, s *Service) {
-			rc <- statusUpdate{sn: sn, status: s.GetInstances()}
+			rc <- statusUpdate{sn: sn, status: s.GetStatus()}
 		}(sn, s)
 	}
-	r := &ApplicationStatus{Services: make(map[string]struct{ Instances map[string]Status })}
+	r := &ApplicationStatus{Services: make(map[string]ServiceStatus)}
 	for range app.Services {
 		s := <-rc
-		r.Services[s.sn] = struct{ Instances map[string]Status }{Instances: make(map[string]Status)}
-		for in, i := range s.status {
-			r.Services[s.sn].Instances[in] = i
-		}
+		r.Services[s.sn] = s.status
 	}
 	return r
 }

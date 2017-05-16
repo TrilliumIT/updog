@@ -6,16 +6,22 @@ import (
 	"time"
 )
 
-type ServiceState uint8
+type ServiceStatus struct {
+	Instances  map[string]InstanceStatus
+	Up         int
+	Down       int
+	IsDegraded bool
+	IsFailed   bool
+}
 
 type Service struct {
-	Instances    []string `json:"instances"`
-	MaxFailures  int      `json:"max_failures"`
-	Stype        string   `json:"type"`
-	Interval     Interval `json:"interval"`
-	instances    map[string]*Instance
-	updates      chan *StatusUpdate
-	getInstances chan chan<- map[string]Status
+	Instances       []string `json:"instances"`
+	MaxFailures     int      `json:"max_failures"`
+	Stype           string   `json:"type"`
+	Interval        Interval `json:"interval"`
+	instances       map[string]*Instance
+	updates         chan *InstanceStatusUpdate
+	getInstanceChan chan chan<- map[string]InstanceStatus
 }
 
 // this is not exported, and must only be called from within the main loop to avoid concurrent map access
@@ -32,8 +38,8 @@ func (s *Service) getStatus() (up, down int, isDegraded, isFailed bool) {
 }
 
 func (s *Service) StartChecks(sTSDBClient *opentsdb.Client) {
-	s.updates = make(chan *StatusUpdate)
-	s.getInstances = make(chan chan<- map[string]Status)
+	s.updates = make(chan *InstanceStatusUpdate)
+	s.getInstanceChan = make(chan chan<- map[string]InstanceStatus)
 
 	s.instances = make(map[string]*Instance)
 	for _, i := range s.Instances {
@@ -64,9 +70,9 @@ Status:
 			sTSDBClient.Submit("updog.service.total_instances", instancesDown+instancesUp, su.status.TimeStamp)
 			sTSDBClient.Submit("updog.service.degraded", isDegraded, su.status.TimeStamp)
 			sTSDBClient.Submit("updog.service.failed", isFailed, su.status.TimeStamp)
-		case gi := <-s.getInstances:
+		case gi := <-s.getInstanceChan:
 			log.Debug("Instances requested")
-			r := make(map[string]Status)
+			r := make(map[string]InstanceStatus)
 			for k, v := range s.instances {
 				r[k] = *v.status
 			}
@@ -75,10 +81,26 @@ Status:
 	}
 }
 
-func (s *Service) GetInstances() map[string]Status {
-	rc := make(chan map[string]Status)
+func (s *Service) getInstances() map[string]InstanceStatus {
+	rc := make(chan map[string]InstanceStatus)
 	log.Debug("Sending update request")
-	s.getInstances <- rc
+	s.getInstanceChan <- rc
 	log.Debug("Waiting on return")
 	return <-rc
+}
+
+func (s *Service) GetStatus() ServiceStatus {
+	ss := ServiceStatus{}
+	ss.Instances = s.getInstances()
+	ss.Up = 0
+	for _, s := range ss.Instances {
+		if s.Up {
+			ss.Up++
+		}
+	}
+	ss.Down = len(ss.Instances) - ss.Up
+	ss.IsDegraded = ss.Down > 0
+	ss.IsFailed = ss.Down > s.MaxFailures
+
+	return ss
 }

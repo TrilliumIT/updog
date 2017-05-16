@@ -31,14 +31,14 @@ func (d *Dashboard) apiHandler(w http.ResponseWriter, r *http.Request) {
 	l.Debug("api request")
 
 	if url == "" {
-		//TODO: something smart for the root
+		http.Error(w, "Invalid Request.", 400)
 		return
 	}
 
 	parts := strings.Split(url, "/")
 
-	if len(parts) > 1 {
-		switch parts[2] {
+	if len(parts) > 0 {
+		switch parts[0] {
 		case "applications":
 			b, err := json.Marshal(d.applications.GetApplicationStatus())
 			if err != nil {
@@ -46,6 +46,9 @@ func (d *Dashboard) apiHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			w.Write(b)
+		default:
+			http.NotFound(w, r)
+			return
 		}
 	}
 }

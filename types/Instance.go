@@ -10,21 +10,21 @@ import (
 	"time"
 )
 
-type StatusUpdate struct {
+type InstanceStatusUpdate struct {
 	address string
-	status  *Status
+	status  *InstanceStatus
 }
 
-type Status struct {
+type InstanceStatus struct {
 	Up           bool
 	ResponseTime time.Duration
 	TimeStamp    time.Time
 }
 
 type Instance struct {
-	status  *Status
+	status  *InstanceStatus
 	address string
-	update  chan *StatusUpdate
+	update  chan *InstanceStatusUpdate
 }
 
 func submitTSDBMetric(tsdbClient *opentsdb.Client, up bool, start, end time.Time) {
@@ -50,8 +50,8 @@ func (i *Instance) RunChecks(sType string, interval time.Duration, iTSDBClient *
 		}
 		end := time.Now()
 		submitTSDBMetric(iTSDBClient, up, start, end)
-		st := &Status{Up: up, ResponseTime: end.Sub(start), TimeStamp: end}
-		i.update <- &StatusUpdate{address: i.address, status: st}
+		st := &InstanceStatus{Up: up, ResponseTime: end.Sub(start), TimeStamp: end}
+		i.update <- &InstanceStatusUpdate{address: i.address, status: st}
 		<-t.C
 	}
 }

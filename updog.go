@@ -42,7 +42,7 @@ func main() {
 		log.WithError(err).Fatal("Failed to unmarshal yaml")
 	}
 
-	bosun := updog.NewBosunClient(config.BosunAddress)
+	//bosun := updog.NewBosunClient(config.BosunAddress)
 
 	for an, app := range config.Applications {
 		l := log.WithField("application", an)
@@ -53,33 +53,53 @@ func main() {
 		}
 	}
 
-	db := &updog.Dashboard{}
-	go db.Start()
+	//db := &updog.Dashboard{}
+	//go db.Start()
 
 	log.Println("Waiting for signal...")
 	for s := range sigs {
 		log.Debug("Signal Recieved")
 		switch s {
 		case syscall.SIGHUP:
-			for an, app := range config.Applications {
+			appStatus := getApplicationStatus(config.Applications)
+			for an, app := range appStatus {
 				l := log.WithField("application", an)
 				l.Debug("Looping services")
 				for sn, s := range app.Services {
 					l := l.WithField("service", sn)
 					l.Debug("Checking service")
-					go func(s *updog.Service, l *log.Entry) {
-						for in, i := range s.GetInstances() {
-							l.WithFields(log.Fields{
-								"instance":      in,
-								"up":            i.Up,
-								"response time": i.ResponseTime,
-							}).Info("Instance Status")
-						}
-					}(s, l)
+					for in, i := range s.Instances {
+						l := l.WithField("instance", in)
+						l.WithFields(log.Fields{
+							"up":            i.Up,
+							"response time": i.ResponseTime,
+							"timestamp":     i.TimeStamp,
+						}).Info("Instance Status")
+					}
 				}
 			}
 		default:
 			return
 		}
 	}
+}
+
+func getApplicationStatus(apps map[string]*updog.Application) map[string]*updog.ApplicationStatus {
+	type statusUpdate struct {
+		an     string
+		status *updog.ApplicationStatus
+	}
+	rc := make(chan statusUpdate)
+	defer close(rc)
+	for an, app := range apps {
+		go func(an string, app *updog.Application) {
+			rc <- statusUpdate{an: an, status: app.GetStatus()}
+		}(an, app)
+	}
+	r := make(map[string]*updog.ApplicationStatus)
+	for range apps {
+		a := <-rc
+		r[a.an] = a.status
+	}
+	return r
 }

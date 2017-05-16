@@ -16,8 +16,6 @@ var (
 	config *updog.Config
 )
 
-//go:generate go-bindata -prefix "pub/" -pkg main -o bindata.go pub/...
-
 func main() {
 	var err error
 	sigs := make(chan os.Signal, 1)

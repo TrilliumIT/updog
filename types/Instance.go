@@ -1,6 +1,7 @@
 package types
 
 import (
+	"github.com/TrilliumIT/updog/opentsdb"
 	log "github.com/sirupsen/logrus"
 	"io"
 	"io/ioutil"
@@ -26,15 +27,29 @@ type Instance struct {
 	update  chan *StatusUpdate
 }
 
-func (i *Instance) CheckTCP(interval time.Duration) {
-	log.WithField("address", i.address).Debug("Starting CheckTcp")
+func submitTSDBMetric(tsdbClient *opentsdb.Client, up bool, start, end time.Time) {
+	tsdbClient.Submit("updog.instance.up", up, start)
+	tsdbClient.Submit("updog.instance.response_time", end.Sub(start), start)
+}
 
-	var start time.Time
+func (i *Instance) RunChecks(sType string, interval time.Duration, iTSDBClient *opentsdb.Client) {
+	l := log.WithField("address", i.address)
+	l.Debug("Starting Checks")
 	t := time.NewTicker(interval)
+	var up bool
 	for {
-		start = time.Now()
-		up := tcpConnectCheck(i.address, interval)
+		start := time.Now()
+		switch sType {
+		case "tcp_connect":
+			up = tcpConnectCheck(i.address, interval)
+		case "http_status":
+			up = httpStatusCheck(i.address, interval)
+		default:
+			l.WithField("type", sType).Error("Unknown service type")
+			return
+		}
 		end := time.Now()
+		submitTSDBMetric(iTSDBClient, up, start, end)
 		st := &Status{Up: up, ResponseTime: end.Sub(start), TimeStamp: end}
 		i.update <- &StatusUpdate{address: i.address, status: st}
 		<-t.C
@@ -47,20 +62,6 @@ func tcpConnectCheck(address string, timeout time.Duration) bool {
 		defer conn.Close()
 	}
 	return err == nil
-}
-
-func (i *Instance) CheckHTTP(interval time.Duration) {
-	log.WithField("address", i.address).Debug("Starting CheckHttp")
-
-	t := time.NewTicker(interval)
-	for {
-		start := time.Now()
-		up := httpStatusCheck(i.address, interval)
-		end := time.Now()
-		st := &Status{Up: up, ResponseTime: end.Sub(start), TimeStamp: end}
-		i.update <- &StatusUpdate{address: i.address, status: st}
-		<-t.C
-	}
 }
 
 func httpStatusCheck(address string, timeout time.Duration) bool {

@@ -12,19 +12,22 @@ import (
 	"time"
 )
 
-type BosunClient struct {
-	bosunAddr   string
-	updateChan  chan *opentsdb.DataPoint
-	tags        map[string]string
-	blockTagSet bool
-	tagLock     sync.Mutex
+type Client struct {
+	opentsdbAddr string
+	updateChan   chan *opentsdb.DataPoint
+	tags         map[string]string
+	blockTagSet  bool
+	tagLock      sync.Mutex
 }
 
-func NewBosunClient(host string, tags map[string]string) *BosunClient {
-	b := &BosunClient{
-		bosunAddr:  host,
-		updateChan: make(chan *opentsdb.DataPoint),
-		tags:       tags,
+func NewClient(host string, tags map[string]string) *Client {
+	b := &Client{
+		opentsdbAddr: host,
+		updateChan:   make(chan *opentsdb.DataPoint),
+		tags:         tags,
+	}
+	if b.opentsdbAddr == "" {
+		return b
 	}
 	go func() {
 		t := time.NewTicker(3 * time.Second)
@@ -41,9 +44,9 @@ func NewBosunClient(host string, tags map[string]string) *BosunClient {
 					continue
 				}
 			}
-			err := sendDataPoints(dps, b.bosunAddr)
+			err := sendDataPoints(dps, b.opentsdbAddr)
 			if err != nil {
-				log.WithError(err).Error("Error sending data to bosun")
+				log.WithError(err).Error("Error sending data to opentsdb")
 				continue
 			}
 			dps = []*opentsdb.DataPoint{}
@@ -69,10 +72,10 @@ func sendDataPoints(dps []*opentsdb.DataPoint, addr string) error {
 }
 
 // NewClient creates a derivative client using different tags but the same host
-func (b *BosunClient) NewClient(tags map[string]string) *BosunClient {
-	nb := &BosunClient{
-		bosunAddr:  b.bosunAddr,
-		updateChan: b.updateChan,
+func (b *Client) NewClient(tags map[string]string) *Client {
+	nb := &Client{
+		opentsdbAddr: b.opentsdbAddr,
+		updateChan:   b.updateChan,
 	}
 	for k, v := range b.tags {
 		nb.tags[k] = v
@@ -83,7 +86,10 @@ func (b *BosunClient) NewClient(tags map[string]string) *BosunClient {
 	return nb
 }
 
-func (b *BosunClient) Submit(metric string, value interface{}, timestamp time.Time) {
+func (b *Client) Submit(metric string, value interface{}, timestamp time.Time) {
+	if b.opentsdbAddr == "" {
+		return
+	}
 	go func() {
 		b.updateChan <- &opentsdb.DataPoint{
 			Metric:    metric,

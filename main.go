@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/TrilliumIT/updog/dashboard"
+	"github.com/TrilliumIT/updog/opentsdb"
 	updog "github.com/TrilliumIT/updog/types"
 	"github.com/ghodss/yaml"
 	log "github.com/sirupsen/logrus"
@@ -40,14 +41,20 @@ func main() {
 		log.WithError(err).Fatal("Failed to unmarshal yaml")
 	}
 
-	//bosun := updog.NewBosunClient(conf.BosunAddress)
+	sourceHost := os.Getenv("OPENTSDB_SOURCE_HOST")
+	if sourceHost == "" {
+		sourceHost, _ = os.Hostname()
+	}
+	tsdbClient := opentsdb.NewClient(conf.OpenTSDBAddress, map[string]string{"host": sourceHost})
 
 	for an, app := range conf.Applications {
 		l := log.WithField("application", an)
+		aTSDBClient := tsdbClient.NewClient(map[string]string{"updog.application": an})
 		app.Name = an
 		for sn, service := range app.Services {
 			l.WithField("service", sn).Info("Starting checks")
-			go service.StartChecks()
+			sTSDBClient := tsdbClient.NewClient(map[string]string{"updog.service": sn})
+			go service.StartChecks(sTSDBClient)
 		}
 	}
 

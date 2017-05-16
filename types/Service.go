@@ -1,17 +1,12 @@
 package types
 
 import (
+	"github.com/TrilliumIT/updog/opentsdb"
 	log "github.com/sirupsen/logrus"
 	"time"
 )
 
 type ServiceState uint8
-
-const (
-	SERVICE_UP = iota
-	SERVICE_DEGRADED
-	SERVICE_DOWN
-)
 
 type Service struct {
 	Instances    []string `json:"instances"`
@@ -19,12 +14,24 @@ type Service struct {
 	Stype        string   `json:"type"`
 	Interval     Interval `json:"interval"`
 	instances    map[string]*Instance
-	faults       int
 	updates      chan *StatusUpdate
 	getInstances chan chan<- map[string]Status
 }
 
-func (s *Service) StartChecks() {
+// this is not exported, and must only be called from within the main loop to avoid concurrent map access
+func (s *Service) getStatus() (up, down int, isDegraded, isFailed bool) {
+	for _, i := range s.instances {
+		if i.status.Up {
+			up++
+		}
+	}
+	down = len(s.instances) - up
+	isDegraded = down > 0
+	isFailed = down > s.MaxFailures
+	return
+}
+
+func (s *Service) StartChecks(sTSDBClient opentsdb.Client) {
 	s.updates = make(chan *StatusUpdate)
 	s.getInstances = make(chan chan<- map[string]Status)
 
@@ -34,19 +41,8 @@ func (s *Service) StartChecks() {
 	}
 
 	for addr, inst := range s.instances {
-		switch s.Stype {
-		case "tcp_connect":
-			go inst.CheckTCP(time.Duration(s.Interval))
-		case "http_status":
-			go inst.CheckHTTP(time.Duration(s.Interval))
-			//TODO
-			//case "tcp_response":
-			//	go s.CheckTcpResponse(addr)
-			//case "http_response":
-			//	go s.CheckHttpResponse(addr)
-		default:
-			log.WithField("type", s.Stype).WithField("address", addr).Error("Unknown service type")
-		}
+		iTSDBClient := sTSDBClient.NewClient(map[string]string{"updog.instance": addr})
+		go inst.RunChecks(s.Stype, time.Duration(s.Interval), iTSDBClient)
 	}
 
 Status:
@@ -62,6 +58,12 @@ Status:
 				continue Status
 			}
 			i.status = su.status
+			instancesUp, instancesDown, isDegraded, isFailed := s.getStatus()
+			sTSDBClient.Submit("updog.service.instances_up", instancesUp, su.status.TimeStamp)
+			sTSDBClient.Submit("updog.service.instances_down", instancesDown, su.status.TimeStamp)
+			sTSDBClient.Submit("updog.service.total_instances", instancesDown+instancesUp, su.status.TimeStamp)
+			sTSDBClient.Submit("updog.service.degraded", isDegraded, su.status.TimeStamp)
+			sTSDBClient.Submit("updog.service.failed", isFailed, su.status.TimeStamp)
 		case gi := <-s.getInstances:
 			log.Debug("Instances requested")
 			r := make(map[string]Status)
@@ -79,24 +81,4 @@ func (s *Service) GetInstances() map[string]Status {
 	s.getInstances <- rc
 	log.Debug("Waiting on return")
 	return <-rc
-}
-
-func (s *Service) isUp() bool {
-	fails := 0
-	for _, i := range s.instances {
-		if !i.status.Up {
-			fails++
-		}
-	}
-	return fails <= s.MaxFailures
-}
-
-func (s *Service) isDegraded() bool {
-	fails := 0
-	for _, i := range s.instances {
-		if !i.status.Up {
-			fails++
-		}
-	}
-	return fails > 0
 }

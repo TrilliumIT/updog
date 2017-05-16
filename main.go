@@ -58,7 +58,7 @@ func main() {
 		}
 	}
 
-	db := &dashboard.Dashboard{}
+	db := dashboard.NewDashboard(&conf.Applications)
 	go db.Start()
 
 	log.Println("Waiting for signal...")

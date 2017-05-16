@@ -21,7 +21,7 @@ type Service struct {
 // this is not exported, and must only be called from within the main loop to avoid concurrent map access
 func (s *Service) getStatus() (up, down int, isDegraded, isFailed bool) {
 	for _, i := range s.instances {
-		if i.status.Up {
+		if i.status != nil && i.status.Up {
 			up++
 		}
 	}
@@ -31,7 +31,7 @@ func (s *Service) getStatus() (up, down int, isDegraded, isFailed bool) {
 	return
 }
 
-func (s *Service) StartChecks(sTSDBClient opentsdb.Client) {
+func (s *Service) StartChecks(sTSDBClient *opentsdb.Client) {
 	s.updates = make(chan *StatusUpdate)
 	s.getInstances = make(chan chan<- map[string]Status)
 

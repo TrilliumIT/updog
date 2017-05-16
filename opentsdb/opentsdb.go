@@ -3,6 +3,7 @@ package opentsdb
 import (
 	"bosun.org/collect"
 	"bosun.org/opentsdb"
+	"bytes"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"io"
@@ -26,6 +27,9 @@ func NewClient(host string, tags map[string]string) *Client {
 		updateChan:   make(chan *opentsdb.DataPoint),
 		tags:         tags,
 	}
+	for k, v := range b.tags {
+		b.tags[k] = opentsdb.MustReplace(v, "_")
+	}
 	if b.opentsdbAddr == "" {
 		return b
 	}
@@ -40,7 +44,7 @@ func NewClient(host string, tags map[string]string) *Client {
 					continue
 				}
 			case <-t.C:
-				if len(dps) < 0 {
+				if len(dps) <= 0 {
 					continue
 				}
 			}
@@ -66,7 +70,13 @@ func sendDataPoints(dps []*opentsdb.DataPoint, addr string) error {
 	}
 	// Some problem with connecting to the server; retry later.
 	if resp.StatusCode != http.StatusNoContent {
-		return fmt.Errorf("Bad status from opentsdb: %v", resp.StatusCode)
+		buf := new(bytes.Buffer)
+		buf.ReadFrom(resp.Body)
+		log.WithFields(log.Fields{
+			"status code": resp.StatusCode,
+			"body":        buf.String(),
+		}).Error("Bad status from opentsdb")
+		return fmt.Errorf("Bad status from opentsdb")
 	}
 	return nil
 }
@@ -76,12 +86,13 @@ func (b *Client) NewClient(tags map[string]string) *Client {
 	nb := &Client{
 		opentsdbAddr: b.opentsdbAddr,
 		updateChan:   b.updateChan,
+		tags:         make(map[string]string),
 	}
 	for k, v := range b.tags {
 		nb.tags[k] = v
 	}
 	for k, v := range tags {
-		nb.tags[k] = v
+		nb.tags[k] = opentsdb.MustReplace(v, "_")
 	}
 	return nb
 }
@@ -90,12 +101,24 @@ func (b *Client) Submit(metric string, value interface{}, timestamp time.Time) {
 	if b.opentsdbAddr == "" {
 		return
 	}
-	go func() {
-		b.updateChan <- &opentsdb.DataPoint{
-			Metric:    metric,
-			Timestamp: timestamp.Unix(),
-			Value:     value,
-			Tags:      b.tags,
+	dp := &opentsdb.DataPoint{
+		Metric:    metric,
+		Timestamp: timestamp.Unix(),
+		Value:     value,
+		Tags:      b.tags,
+	}
+	switch v := dp.Value.(type) {
+	case bool:
+		if v {
+			dp.Value = int(1)
+		} else {
+			dp.Value = int(0)
 		}
+	case time.Duration:
+		dp.Value = v.Seconds() * 1e3
+	}
+	dp.Metric = opentsdb.MustReplace(dp.Metric, "_")
+	go func() {
+		b.updateChan <- dp
 	}()
 }

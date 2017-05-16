@@ -53,7 +53,7 @@ func main() {
 		app.Name = an
 		for sn, service := range app.Services {
 			l.WithField("service", sn).Info("Starting checks")
-			sTSDBClient := tsdbClient.NewClient(map[string]string{"updog.service": sn})
+			sTSDBClient := aTSDBClient.NewClient(map[string]string{"updog.service": sn})
 			go service.StartChecks(sTSDBClient)
 		}
 	}

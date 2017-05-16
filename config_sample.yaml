@@ -1,4 +1,4 @@
-bosunAddress: "bosun.example.com"
+opentsdb_address: "http://bosun.example.com:8070/api/put"
 applications:
   zookeeper:
     services:

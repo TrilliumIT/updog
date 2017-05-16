@@ -12,11 +12,9 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var (
-	config *updog.Config
-)
-
+//go:generate go-bindata -prefix "pub/" -pkg updog -o types/bindata.go pub/...
 func main() {
+	var conf *updog.Config
 	var err error
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
@@ -37,14 +35,14 @@ func main() {
 		}
 	}
 
-	err = yaml.Unmarshal(y, &config)
+	err = yaml.Unmarshal(y, &conf)
 	if err != nil {
 		log.WithError(err).Fatal("Failed to unmarshal yaml")
 	}
 
-	//bosun := updog.NewBosunClient(config.BosunAddress)
+	//bosun := updog.NewBosunClient(conf.BosunAddress)
 
-	for an, app := range config.Applications {
+	for an, app := range conf.Applications {
 		l := log.WithField("application", an)
 		app.Name = an
 		for sn, service := range app.Services {
@@ -61,7 +59,7 @@ func main() {
 		log.Debug("Signal Recieved")
 		switch s {
 		case syscall.SIGHUP:
-			appStatus := getApplicationStatus(config.Applications)
+			appStatus := getApplicationStatus(conf.Applications)
 			for an, app := range appStatus {
 				l := log.WithField("application", an)
 				l.Debug("Looping services")

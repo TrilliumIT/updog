@@ -5,6 +5,14 @@ import (
 	"time"
 )
 
+type ServiceState uint8
+
+const (
+	SERVICE_UP = iota
+	SERVICE_DEGRADED
+	SERVICE_DOWN
+)
+
 type Service struct {
 	Instances    []string `json:"instances"`
 	MaxFailures  int      `json:"maxFailures"`
@@ -13,12 +21,12 @@ type Service struct {
 	instances    map[string]*Instance
 	faults       int
 	updates      chan *Status
-	getInstances chan chan<- map[string]*Instance
+	getInstances chan chan<- map[string]Status
 }
 
 func (s *Service) StartChecks() {
 	s.updates = make(chan *Status)
-	s.getInstances = make(chan chan<- map[string]*Instance)
+	s.getInstances = make(chan chan<- map[string]Status)
 
 	s.instances = make(map[string]*Instance)
 	for _, i := range s.Instances {
@@ -51,23 +59,23 @@ Status:
 			var ok bool
 			if i, ok = s.instances[st.address]; !ok {
 				l.Warn("Recieved status update for unknown instance")
-				break Status
+				continue Status
 			}
 			i.Up = st.Up
 			i.ResponseTime = st.ResponseTime
 		case gi := <-s.getInstances:
 			log.Debug("Instances requested")
-			r := make(map[string]*Instance)
+			r := make(map[string]Status)
 			for k, v := range s.instances {
-				r[k] = v
+				r[k] = v.Status
 			}
 			gi <- r
 		}
 	}
 }
 
-func (s *Service) GetInstances() map[string]*Instance {
-	rc := make(chan map[string]*Instance)
+func (s *Service) GetInstances() map[string]Status {
+	rc := make(chan map[string]Status)
 	log.Debug("Sending update request")
 	s.getInstances <- rc
 	log.Debug("Waiting on return")

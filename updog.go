@@ -16,6 +16,8 @@ var (
 	config *updog.Config
 )
 
+//go:generate go-bindata -prefix "pub/" -pkg main -o bindata.go pub/...
+
 func main() {
 	var err error
 	sigs := make(chan os.Signal, 1)
@@ -51,7 +53,8 @@ func main() {
 		}
 	}
 
-	//TODO: start up the http dashboard
+	db := &updog.Dashboard{}
+	go db.Start()
 
 	log.Println("Waiting for signal...")
 	for s := range sigs {
@@ -64,7 +67,7 @@ func main() {
 				for sn, s := range app.Services {
 					l := l.WithField("service", sn)
 					l.Debug("Checking service")
-					go func(s *updog.CheckHTTP, l *log.Entry) {
+					go func(s *updog.Service, l *log.Entry) {
 						for in, i := range s.GetInstances() {
 							l.WithFields(log.Fields{
 								"instance":      in,

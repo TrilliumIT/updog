@@ -42,6 +42,8 @@ func main() {
 		log.WithError(err).Fatal("Failed to unmarshal yaml")
 	}
 
+	bosun := updog.NewBosunClient(config.BosunAddress)
+
 	for an, app := range config.Applications {
 		l := log.WithField("application", an)
 		app.Name = an

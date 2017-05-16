@@ -11,6 +11,7 @@ type Status struct {
 	address      string
 	Up           bool
 	ResponseTime time.Duration
+	TimeStamp    time.Time
 }
 
 type Instance struct {

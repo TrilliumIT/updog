@@ -1,14 +1,34 @@
-hash: 23a9e36f4f91deee31300839c58ed8b64f857b64dbe06d80dc866163ef731321
-updated: 2017-05-15T11:13:26.548092631-04:00
+hash: 14be753ce486d80cdba371dd39a5ebb19e18984efbf45c85def8948b9b9533ea
+updated: 2017-05-15T14:57:53.137892663-04:00
 imports:
+- name: bosun.org
+  version: 879669a0c9ad177aa1aa439edf3b448523b982ce
+  subpackages:
+  - collect
+  - metadata
+  - opentsdb
+  - slog
+  - util
+- name: github.com/garyburd/redigo
+  version: 433969511232c397de61b1442f9fd49ec06ae9ba
+  subpackages:
+  - internal
+  - redis
 - name: github.com/ghodss/yaml
   version: 0ca9ea5df5451ffdf184b4428c902747c2c11cd7
+- name: github.com/GROpenSourceDev/go-ntlm-auth
+  version: 6314d66e1d8ffd12a8da4be59eb4467b60dde719
+  subpackages:
+  - ntlm
 - name: github.com/sirupsen/logrus
   version: 5e5dc898656f695e2a086b8e12559febbfc01562
 - name: golang.org/x/sys
   version: a646d33e2ee3172a661fc09bca23bb4889a41bc8
   subpackages:
   - unix
+  - windows
+  - windows/svc
+  - windows/svc/debug
 - name: gopkg.in/yaml.v2
   version: cd8b52f8269e0feb286dfeef29f8fe4d5b397e0b
 testImports: []

@@ -5,7 +5,7 @@ import (
 	"net/http"
 )
 
-//go:generate go-bindata -prefix "dashbard/pub/" -pkg dashboard -o dashboard/bindata.go dashboard/pub/...
+//go:generate go-bindata -prefix "pub/" -pkg dashboard -o bindata.go pub/...
 type Dashboard struct{}
 
 func (d *Dashboard) Start() error {

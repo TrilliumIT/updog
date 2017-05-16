@@ -3,7 +3,7 @@ applications:
   zookeeper:
     services:
       client:
-        maxFailures: 2
+        max_failures: 2
         interval: 60s
         type: tcp_connect
         instances:
@@ -15,7 +15,7 @@ applications:
   hdfs:
     services:
       journalnode:
-        maxFailures: 2
+        max_failures: 2
         interval: 60s
         type: http_status
         instances:
@@ -25,14 +25,14 @@ applications:
           - "http://hdfs-journalnode4.example.com:8480"
           - "http://hdfs-journalnode5.example.com:8480"
       namenode:
-        maxFailures: 1
+        max_failures: 1
         interval: 60s
         type: http_status
         instances:
           - "http://hdfs-namenode1.example.com:50070"
           - "http://hdfs-namenode2.example.com:50070"
       datanode:
-        maxFailures: 2
+        max_failures: 2
         interval: 60s
         type: http_status
         instances:

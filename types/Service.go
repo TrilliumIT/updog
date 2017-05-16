@@ -15,7 +15,7 @@ const (
 
 type Service struct {
 	Instances    []string `json:"instances"`
-	MaxFailures  int      `json:"maxFailures"`
+	MaxFailures  int      `json:"max_failures"`
 	Stype        string   `json:"type"`
 	Interval     Interval `json:"interval"`
 	instances    map[string]*Instance
@@ -53,8 +53,8 @@ Status:
 	for {
 		select {
 		case su := <-s.updates:
-			l := log.WithField("status update", su)
-			l.Debug("Recieved status")
+			l := log.WithField("address", su.address).WithField("status", su.status)
+			l.Debug("Recieved status update")
 			var i *Instance
 			var ok bool
 			if i, ok = s.instances[su.address]; !ok {

@@ -7,7 +7,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/TrilliumIT/updog/types"
+	"github.com/TrilliumIT/updog/dashboard"
+	updog "github.com/TrilliumIT/updog/types"
 	"github.com/ghodss/yaml"
 	log "github.com/sirupsen/logrus"
 )
@@ -50,8 +51,8 @@ func main() {
 		}
 	}
 
-	//db := &updog.Dashboard{}
-	//go db.Start()
+	db := &dashboard.Dashboard{}
+	go db.Start()
 
 	log.Println("Waiting for signal...")
 	for s := range sigs {

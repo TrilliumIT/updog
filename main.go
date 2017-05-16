@@ -59,7 +59,7 @@ func main() {
 		log.Debug("Signal Recieved")
 		switch s {
 		case syscall.SIGHUP:
-			appStatus := getApplicationStatus(conf.Applications)
+			appStatus := conf.Applications.GetApplicationStatus()
 			for an, app := range appStatus {
 				l := log.WithField("application", an)
 				l.Debug("Looping services")
@@ -80,24 +80,4 @@ func main() {
 			return
 		}
 	}
-}
-
-func getApplicationStatus(apps map[string]*updog.Application) map[string]*updog.ApplicationStatus {
-	type statusUpdate struct {
-		an     string
-		status *updog.ApplicationStatus
-	}
-	rc := make(chan statusUpdate)
-	defer close(rc)
-	for an, app := range apps {
-		go func(an string, app *updog.Application) {
-			rc <- statusUpdate{an: an, status: app.GetStatus()}
-		}(an, app)
-	}
-	r := make(map[string]*updog.ApplicationStatus)
-	for range apps {
-		a := <-rc
-		r[a.an] = a.status
-	}
-	return r
 }

@@ -1,6 +1,6 @@
 package types
 
 type Config struct {
-	Applications map[string]*Application `json:"applications"`
-	BosunAddress string                  `json:"bosunAddress"`
+	Applications Applications `json:"applications"`
+	BosunAddress string       `json:"bosunAddress"`
 }

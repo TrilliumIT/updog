@@ -1,10 +1,11 @@
-package updog
+package dashboard
 
 import (
 	log "github.com/sirupsen/logrus"
 	"net/http"
 )
 
+//go:generate go-bindata -prefix "dashbard/pub/" -pkg dashboard -o dashboard/bindata.go dashboard/pub/...
 type Dashboard struct{}
 
 func (d *Dashboard) Start() error {

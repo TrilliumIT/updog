@@ -12,7 +12,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-//go:generate go-bindata -prefix "pub/" -pkg updog -o types/bindata.go pub/...
 func main() {
 	var conf *updog.Config
 	var err error

@@ -1,4 +1,4 @@
-package updog
+package opentsdb
 
 import (
 	"bosun.org/collect"

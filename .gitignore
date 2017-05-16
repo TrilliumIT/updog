@@ -1,4 +1,4 @@
 updog
 vendor
 config.yaml
-types/bindata.go
+dashboard/bindata.go

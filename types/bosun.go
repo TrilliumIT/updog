@@ -3,11 +3,11 @@ package updog
 import (
 	"bosun.org/collect"
 	"bosun.org/opentsdb"
+	"fmt"
 	log "github.com/sirupsen/logrus"
 	"io"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 	"sync"
 	"time"
 )
@@ -28,9 +28,10 @@ func NewBosunClient(host string, tags map[string]string) *BosunClient {
 	}
 	go func() {
 		t := time.NewTicker(3 * time.Second)
+		dps := []*opentsdb.DataPoint{}
 		for {
 			select {
-			case dp := <-updateChan:
+			case dp := <-b.updateChan:
 				dps = append(dps, dp)
 				if len(dps) < 256 {
 					continue
@@ -52,9 +53,9 @@ func NewBosunClient(host string, tags map[string]string) *BosunClient {
 }
 
 func sendDataPoints(dps []*opentsdb.DataPoint, addr string) error {
-	resp, err := collect.SendDataPoints(dps, b.bosunAddr)
+	resp, err := collect.SendDataPoints(dps, addr)
 	if err == nil {
-		defer resp.body.Close()
+		defer resp.Body.Close()
 		defer io.Copy(ioutil.Discard, resp.Body)
 	}
 	if err != nil {
@@ -82,11 +83,13 @@ func (b *BosunClient) NewClient(tags map[string]string) *BosunClient {
 	return nb
 }
 
-func (b *BosunClient) Submit(metric string, value interface{}, timestamp time.Time) error {
-	dp := &opentsdb.DataPoint{
-		Metric:    metric,
-		Timestamp: timestamp,
-		Value:     value,
-		Tags:      b.tags,
-	}
+func (b *BosunClient) Submit(metric string, value interface{}, timestamp time.Time) {
+	go func() {
+		b.updateChan <- &opentsdb.DataPoint{
+			Metric:    metric,
+			Timestamp: timestamp.Unix(),
+			Value:     value,
+			Tags:      b.tags,
+		}
+	}()
 }

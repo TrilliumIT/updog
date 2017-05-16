@@ -1,4 +1,4 @@
-package updog
+package types
 
 import (
 	log "github.com/sirupsen/logrus"

@@ -1,4 +1,4 @@
-package updog
+package types
 
 type Config struct {
 	Applications map[string]*Application `json:"applications"`

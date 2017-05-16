@@ -2,21 +2,28 @@ package updog
 
 import (
 	log "github.com/sirupsen/logrus"
+	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"time"
 )
 
+type StatusUpdate struct {
+	address string
+	status  *Status
+}
+
 type Status struct {
-	address      string
 	Up           bool
 	ResponseTime time.Duration
 	TimeStamp    time.Time
 }
 
 type Instance struct {
-	Status
-	update chan *Status
+	status  *Status
+	address string
+	update  chan *StatusUpdate
 }
 
 func (i *Instance) CheckTCP(interval time.Duration) {
@@ -26,34 +33,42 @@ func (i *Instance) CheckTCP(interval time.Duration) {
 	t := time.NewTicker(interval)
 	for {
 		start = time.Now()
-		conn, err := net.DialTimeout("tcp", i.address, interval)
+		up := tcpConnectCheck(i.address, interval)
 		end := time.Now()
-		i.update <- &Status{address: i.address, Up: err == nil, ResponseTime: end.Sub(start), TimeStamp: end}
-		if err == nil {
-			conn.Close()
-		}
+		st := &Status{Up: up, ResponseTime: end.Sub(start), TimeStamp: end}
+		i.update <- &StatusUpdate{address: i.address, status: st}
 		<-t.C
 	}
+}
+
+func tcpConnectCheck(address string, timeout time.Duration) bool {
+	conn, err := net.DialTimeout("tcp", address, timeout)
+	if err == nil {
+		defer conn.Close()
+	}
+	return err == nil
 }
 
 func (i *Instance) CheckHTTP(interval time.Duration) {
 	log.WithField("address", i.address).Debug("Starting CheckHttp")
 
-	var up bool
-	client := http.Client{Timeout: interval}
 	t := time.NewTicker(interval)
 	for {
-		up = false
 		start := time.Now()
-		resp, err := client.Head(i.address)
+		up := httpStatusCheck(i.address, interval)
 		end := time.Now()
-		if err == nil {
-			if resp.StatusCode >= 200 && resp.StatusCode <= 399 {
-				up = true
-			}
-			resp.Body.Close()
-		}
-		i.update <- &Status{address: i.address, Up: up, ResponseTime: end.Sub(start), TimeStamp: end}
+		st := &Status{Up: up, ResponseTime: end.Sub(start), TimeStamp: end}
+		i.update <- &StatusUpdate{address: i.address, status: st}
 		<-t.C
 	}
+}
+
+func httpStatusCheck(address string, timeout time.Duration) bool {
+	client := http.Client{Timeout: timeout}
+	resp, err := client.Head(address)
+	if err == nil {
+		defer resp.Body.Close()
+		defer io.Copy(ioutil.Discard, resp.Body)
+	}
+	return err == nil && resp.StatusCode >= 200 && resp.StatusCode <= 300
 }

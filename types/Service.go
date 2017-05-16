@@ -20,17 +20,17 @@ type Service struct {
 	Interval     Interval `json:"interval"`
 	instances    map[string]*Instance
 	faults       int
-	updates      chan *Status
+	updates      chan *StatusUpdate
 	getInstances chan chan<- map[string]Status
 }
 
 func (s *Service) StartChecks() {
-	s.updates = make(chan *Status)
+	s.updates = make(chan *StatusUpdate)
 	s.getInstances = make(chan chan<- map[string]Status)
 
 	s.instances = make(map[string]*Instance)
 	for _, i := range s.Instances {
-		s.instances[i] = &Instance{Status: Status{address: i}, update: s.updates}
+		s.instances[i] = &Instance{address: i, update: s.updates}
 	}
 
 	for addr, inst := range s.instances {
@@ -52,22 +52,21 @@ func (s *Service) StartChecks() {
 Status:
 	for {
 		select {
-		case st := <-s.updates:
-			l := log.WithField("status", st)
+		case su := <-s.updates:
+			l := log.WithField("status update", su)
 			l.Debug("Recieved status")
 			var i *Instance
 			var ok bool
-			if i, ok = s.instances[st.address]; !ok {
+			if i, ok = s.instances[su.address]; !ok {
 				l.Warn("Recieved status update for unknown instance")
 				continue Status
 			}
-			i.Up = st.Up
-			i.ResponseTime = st.ResponseTime
+			i.status = su.status
 		case gi := <-s.getInstances:
 			log.Debug("Instances requested")
 			r := make(map[string]Status)
 			for k, v := range s.instances {
-				r[k] = v.Status
+				r[k] = *v.status
 			}
 			gi <- r
 		}
@@ -85,7 +84,7 @@ func (s *Service) GetInstances() map[string]Status {
 func (s *Service) isUp() bool {
 	fails := 0
 	for _, i := range s.instances {
-		if !i.Up {
+		if !i.status.Up {
 			fails++
 		}
 	}
@@ -95,7 +94,7 @@ func (s *Service) isUp() bool {
 func (s *Service) isDegraded() bool {
 	fails := 0
 	for _, i := range s.instances {
-		if !i.Up {
+		if !i.status.Up {
 			fails++
 		}
 	}

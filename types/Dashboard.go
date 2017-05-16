@@ -1,5 +1,6 @@
 package updog
 
+/*
 import (
 	log "github.com/sirupsen/logrus"
 	"net/http"
@@ -24,3 +25,4 @@ func (d *Dashboard) Start() error {
 	log.Info("Starting dashboard listener...")
 	return http.ListenAndServe(":8080", nil)
 }
+*/

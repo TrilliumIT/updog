@@ -3,7 +3,7 @@ window.setInterval(updateTimestamps, 1000);
 
 function updateApplications() {
 	$.getJSON("/api/applications", function(data) {
-		console.log(data);
+		//console.log(data);
 		$.each(data, function(an, app) {
 			if ($('#app_'+an).length == 0) {
 				$('#content').append('<div class="application" id="app_'+an+'"><div class="title">'+an+'</div></div>');

@@ -43,7 +43,7 @@ func (s *Service) StartChecks(sTSDBClient *opentsdb.Client) {
 
 	s.instances = make(map[string]*Instance)
 	for _, i := range s.Instances {
-		s.instances[i] = &Instance{address: i, update: s.updates}
+		s.instances[i] = &Instance{address: i, update: s.updates, status: &InstanceStatus{}}
 	}
 
 	for addr, inst := range s.instances {

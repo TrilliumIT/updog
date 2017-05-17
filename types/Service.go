@@ -56,7 +56,6 @@ Status:
 		select {
 		case su := <-s.updates:
 			l := log.WithField("address", su.address).WithField("status", su.status)
-			l.Debug("Recieved status update")
 			var i *Instance
 			var ok bool
 			if i, ok = s.instances[su.address]; !ok {
@@ -71,7 +70,6 @@ Status:
 			sTSDBClient.Submit("updog.service.degraded", isDegraded, su.status.TimeStamp)
 			sTSDBClient.Submit("updog.service.failed", isFailed, su.status.TimeStamp)
 		case gi := <-s.getInstanceChan:
-			log.Debug("Instances requested")
 			r := make(map[string]InstanceStatus)
 			for k, v := range s.instances {
 				r[k] = *v.status
@@ -83,9 +81,7 @@ Status:
 
 func (s *Service) getInstances() map[string]InstanceStatus {
 	rc := make(chan map[string]InstanceStatus)
-	log.Debug("Sending update request")
 	s.getInstanceChan <- rc
-	log.Debug("Waiting on return")
 	return <-rc
 }
 

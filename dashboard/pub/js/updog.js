@@ -17,32 +17,32 @@ function updateApplications() {
 
 				if (!serv.IsDegraded && !serv.IsFailed) {
 					$('#serv_'+an+'_'+sn+' .stat').text("up");
-					if(!$('#serv_'+an+'_'+sn).hasClass("up")) {
+					if(!$('#serv_'+an+'_'+sn+' .serv_sum').hasClass("up")) {
 						$('#serv_'+an+'_'+sn).children('.inst_table').slideUp()
-						$('#serv_'+an+'_'+sn).removeClass("degraded");
-						$('#serv_'+an+'_'+sn).removeClass("failed");
+						$('#serv_'+an+'_'+sn+' .serv_sum').removeClass("degraded");
+						$('#serv_'+an+'_'+sn+' .serv_sum').removeClass("failed");
 					}
-					$('#serv_'+an+'_'+sn).addClass("up");
+					$('#serv_'+an+'_'+sn+' .serv_sum').addClass("up");
 				}
 
 				if (serv.IsDegraded && !serv.IsFailed) {
 					$('#serv_'+an+'_'+sn+' .stat').text("degraded");
-					if(!$('#serv_'+an+'_'+sn).hasClass("degraded")) {
+					if(!$('#serv_'+an+'_'+sn+' .serv_sum').hasClass("degraded")) {
 						$('#serv_'+an+'_'+sn).children('.inst_table').slideDown()
-						$('#serv_'+an+'_'+sn).removeClass("up");
-						$('#serv_'+an+'_'+sn).removeClass("degraded");
+						$('#serv_'+an+'_'+sn+' .serv_sum').removeClass("up");
+						$('#serv_'+an+'_'+sn+' .serv_sum').removeClass("degraded");
 					}
-					$('#serv_'+an+'_'+sn).addClass("degraded");
+					$('#serv_'+an+'_'+sn+' .serv_sum').addClass("degraded");
 				}
 
 				if (serv.IsFailed) {
 					$('#serv_'+an+'_'+sn+' .stat').text("failed");
-					if(!$('#serv_'+an+'_'+sn).hasClass("failed")) {
+					if(!$('#serv_'+an+'_'+sn+' .serv_sum').hasClass("failed")) {
 						$('#serv_'+an+'_'+sn).children('.inst_table').slideDown()
-						$('#serv_'+an+'_'+sn).removeClass("up");
-						$('#serv_'+an+'_'+sn).removeClass("degraded");
+						$('#serv_'+an+'_'+sn+' .serv_sum').removeClass("up");
+						$('#serv_'+an+'_'+sn+' .serv_sum').removeClass("degraded");
 					}
-					$('#serv_'+an+'_'+sn).addClass("failed");
+					$('#serv_'+an+'_'+sn+' .serv_sum').addClass("failed");
 				}
 
 				var tot_rt = 0

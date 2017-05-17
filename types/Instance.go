@@ -5,10 +5,15 @@ import (
 	log "github.com/sirupsen/logrus"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"net"
 	"net/http"
 	"time"
 )
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
 
 type InstanceStatusUpdate struct {
 	address string
@@ -35,6 +40,7 @@ func submitTSDBMetric(tsdbClient *opentsdb.Client, up bool, start, end time.Time
 func (i *Instance) RunChecks(sType string, interval time.Duration, iTSDBClient *opentsdb.Client) {
 	l := log.WithField("address", i.address)
 	l.Debug("Starting Checks")
+	time.Sleep(time.Duration(rand.Int63n(interval.Nanoseconds())))
 	t := time.NewTicker(interval)
 	var up bool
 	for {

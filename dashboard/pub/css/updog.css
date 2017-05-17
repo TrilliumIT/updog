@@ -1,6 +1,35 @@
-table {
+div {
+	margin-bottom: 2em;
+}
+
+.serv_sum, .inst_table {
+	margin: 0.5em;
+}
+
+.application .title {
+	display: block;
+	font-size: 2em;
+	margin: 0.2em;
+}
+
+.service .title {
+	display: block;
+	font-size: 1.5em;
+	margin: 0.2em;
+}
+
+table, tr, td, th {
 	border: 1px solid black;
-	margin-left: 5%;
+	border-collapse: collapse;
+}
+
+.inst_table {
+	margin-left: 8em;
+	margin-right: 8em;
+}
+
+td, th {
+	padding: 0.5em;
 }
 
 .application {
@@ -9,5 +38,35 @@ table {
 
 .service {
 	border: 1px solid black;
-	margin-left: 5%;
+	margin-left: 8em;
+	margin-right: 1em;
+}
+
+tr td {
+	color: red;
+}
+
+.up td {
+	color: green;
+}
+
+.inh {
+	width: 100em;
+}
+
+.rth {
+	width: 10em;
+}
+
+.lch {
+	width: 25em;
+}
+
+.rtd {
+	text-align: right;
+}
+
+
+.lcd {
+	text-align: center;
 }

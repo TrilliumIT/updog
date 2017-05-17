@@ -1,20 +1,23 @@
-div {
+hr {
+	width: 100%;
+}
+.application {
 	margin-bottom: 2em;
+	padding-bottom: 1em;
+}
+
+.serv_sum > div {
+	display: inline-block;
+	font-size: 1.5em;
+	width: 12em;
 }
 
 .serv_sum, .inst_table {
 	margin: 0.5em;
 }
 
-.application .title {
-	display: block;
+.application > .title {
 	font-size: 2em;
-	margin: 0.2em;
-}
-
-.service .title {
-	display: block;
-	font-size: 1.5em;
 	margin: 0.2em;
 }
 
@@ -24,6 +27,10 @@ table, tr, td, th {
 }
 
 .inst_table {
+	display: none;
+}
+
+.inst_table > table {
 	margin-left: 8em;
 	margin-right: 8em;
 }
@@ -38,15 +45,20 @@ td, th {
 
 .service {
 	border: 1px solid black;
+	border-radius: 0.5em;
 	margin-left: 8em;
 	margin-right: 1em;
 }
 
-tr td {
+.failed {
 	color: red;
 }
 
-.up td {
+.degraded {
+	color: orange;
+}
+
+.up {
 	color: green;
 }
 

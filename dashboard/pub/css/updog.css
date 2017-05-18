@@ -15,8 +15,13 @@ hr {
 
 .serv_sum > div {
 	display: inline-block;
-	font-size: 1.5em;
-	width: 12em;
+	font-size: 1.3em;
+	width: 25%;
+	text-align: center;
+}
+
+.serv_sum .title {
+	text-align: left;
 }
 
 .serv_sum, .inst_table {
@@ -68,19 +73,10 @@ td, th {
 	width: 100em;
 }
 
-.rth {
-	width: 10em;
-}
-
-.lch {
+.rth, .lch {
 	width: 25em;
 }
 
-.rtd {
+.rtd, .lcd {
 	text-align: right;
-}
-
-
-.lcd {
-	text-align: center;
 }

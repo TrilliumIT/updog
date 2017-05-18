@@ -11,7 +11,7 @@ function updateApplications() {
 			$.each(app.Services, function(sn, serv) {
 				if ($('#serv_'+an+'_'+sn).length == 0) {
 					$('#app_'+an).append('<div class="service" id="serv_'+an+'_'+sn+'"><div class="serv_sum"><div class="title">'+sn+'</div></div></div>');
-					$('#serv_'+an+'_'+sn+' .serv_sum').append('<div class="stat"></div><div class="ndwn"></div><div class="nup"></div><div class="art"></div>');
+					$('#serv_'+an+'_'+sn+' .serv_sum').append('<div class="stat"></div><div class="nup"></div><div class="art"></div>');
 					$('#serv_'+an+'_'+sn).append('<div class="inst_table"><hr /><table><thead><th class="inh">Instance Name</th><th class="rth">Response Time</th><th class="lch">Last Checked</th></thead><tbody></tbody></div>');
 				}
 
@@ -49,7 +49,7 @@ function updateApplications() {
 
 				$.each(serv.Instances, function(iname, inst) {
 
-					var fin = iname.replace(/\/\//g, "__").replace(/:/g, "_").replace(/\./g, "_");
+					var fin = iname.replace(/\//g, "_").replace(/:/g, "_").replace(/\./g, "_");
 					if ($('#inst_'+fin).length == 0) {
 						$('#serv_'+an+'_'+sn+' table tbody').append('<tr class="instance" id="inst_'+fin+'"></tr>');
 					}
@@ -65,10 +65,13 @@ function updateApplications() {
 					$('#inst_'+fin).html('<td class="ind">'+iname+'</td><td class="rtd">'+toMsFormatted(inst.ResponseTime)+'</td><td class="lcd"><time title="'+inst.TimeStamp+'" ></time></td>');
 				});
 
+					if (serv.Up > 0) {
 					var avg_rt = tot_rt / serv.Up;
-					$('#serv_'+an+'_'+sn+' .art').text(toMsFormatted(avg_rt)+"ms avg response");
-					$('#serv_'+an+'_'+sn+' .nup').text(serv.Up+" nodes up");
-					$('#serv_'+an+'_'+sn+' .ndwn').text(serv.Down+" nodes failed");
+						$('#serv_'+an+'_'+sn+' .art').text(toMsFormatted(avg_rt)+"ms avg");
+					} else {
+						$('#serv_'+an+'_'+sn+' .art').text("no response");
+					}
+					$('#serv_'+an+'_'+sn+' .nup').text(serv.Up+"/"+(serv.Down+serv.Up)+" up");
 			});
 		});
 		updateTimestamps();

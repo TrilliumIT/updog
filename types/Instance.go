@@ -71,11 +71,13 @@ func tcpConnectCheck(address string, timeout time.Duration) bool {
 }
 
 func httpStatusCheck(address string, timeout time.Duration) bool {
-	client := http.Client{Timeout: timeout}
+	client := http.Client{Timeout: timeout, CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}}
 	resp, err := client.Head(address)
 	if err == nil {
 		defer resp.Body.Close()
 		defer io.Copy(ioutil.Discard, resp.Body)
 	}
-	return err == nil && resp.StatusCode >= 200 && resp.StatusCode <= 300
+	return err == nil && resp.StatusCode >= 200 && resp.StatusCode <= 399
 }

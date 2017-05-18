@@ -4,20 +4,53 @@ applications:
     services:
       client:
         max_failures: 2
-        interval: 60s
-        type: tcp_connect
+        check_options:
+          interval: 10s
+          type: tcp_connect
         instances:
           - "zookeeper1.example.com:2181"
           - "zookeeper2.example.com:2181"
           - "zookeeper3.example.com:2181"
           - "zookeeper4.example.com:2181"
           - "zookeeper5.example.com:2181"
+  hbase:
+    services:
+      master:
+        maxFailures: 1
+        check_options:
+          interval: 10s
+          type: http_status
+          http_method: HEAD
+        instances:
+          - "http://hbase-master1.example.com:16010"
+          - "http://hbase-master2.example.com:16010"
+      regionserver:
+        maxFailures: 2
+        check_options:
+          interval: 10s
+          type: http_status
+          http_method: HEAD
+        instances:
+          - "http://worker01.example.com:16030"
+          - "http://worker02.example.com:16030"
+          - "http://worker03.example.com:16030"
+          - "http://worker04.example.com:16030"
+          - "http://worker05.example.com:16030"
+      rest:
+        maxFailures: 1
+        check_options:
+          interval: 10s
+          type: http_status
+        instances:
+          - "http://hbase-rest1.example.com:8080"
+          - "http://hbase-rest2.example.com:8080"
   hdfs:
     services:
       journalnode:
         max_failures: 2
-        interval: 60s
-        type: http_status
+        check_options:
+          interval: 10s
+          type: http_status
         instances:
           - "http://hdfs-journalnode1.example.com:8480"
           - "http://hdfs-journalnode2.example.com:8480"
@@ -26,18 +59,33 @@ applications:
           - "http://hdfs-journalnode5.example.com:8480"
       namenode:
         max_failures: 1
-        interval: 60s
-        type: http_status
+        check_options:
+          interval: 10s
+          type: http_status
         instances:
           - "http://hdfs-namenode1.example.com:50070"
           - "http://hdfs-namenode2.example.com:50070"
       datanode:
         max_failures: 2
-        interval: 60s
-        type: http_status
+        check_options:
+          interval: 10s
+          type: http_status
         instances:
-          - "http://hdfs-datanode1.example.com:50075"
-          - "http://hdfs-datanode2.example.com:50075"
-          - "http://hdfs-datanode3.example.com:50075"
-          - "http://hdfs-datanode4.example.com:50075"
-          - "http://hdfs-datanode5.example.com:50075"
+          - "http://worker01.example.com:50075"
+          - "http://worker02.example.com:50075"
+          - "http://worker03.example.com:50075"
+          - "http://worker04.example.com:50075"
+          - "http://worker05.example.com:50075"
+  solr:
+    services:
+      solr:
+        max_failures: 2
+        check_options:
+          interval: 10s
+          type: http_status
+        instances:
+          - "http://solr01.example.com:8080"
+          - "http://solr02.example.com:8080"
+          - "http://solr03.example.com:8080"
+          - "http://solr04.example.com:8080"
+          - "http://solr05.example.com:8080"

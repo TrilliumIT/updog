@@ -44,15 +44,12 @@ func (d *Dashboard) apiHandler(w http.ResponseWriter, r *http.Request) {
 		switch parts[0] {
 		case "applications":
 			w.Header().Set("Content-Type", "application/json")
-			w.Header().Set("Content-Encoding", "gzip")
-			//w.Header().Set("Access-Control-Allow-Origin", "*")
-			gz := gzip.NewWriter(w)
-			defer gz.Close()
-			err := json.NewEncoder(gz).Encode(d.applications.GetApplicationStatus())
+			a, err := json.Marshal(d.applications.GetApplicationStatus())
 			if err != nil {
 				http.Error(w, "Failed to encode json", 500)
 				return
 			}
+			sendResponse(w, r, a)
 		default:
 			http.NotFound(w, r)
 			return
@@ -82,9 +79,19 @@ func (d *Dashboard) rootHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	gz := gzip.NewWriter(w)
-	defer gz.Close()
-	w.Header().Set("Content-Encoding", "gzip")
 	w.Header().Set("Content-Type", mime.TypeByExtension(filepath.Ext(f.Name())))
-	gz.Write(a)
+	sendResponse(w, r, a)
+}
+
+func sendResponse(w http.ResponseWriter, r *http.Request, a []byte) {
+	for _, ae := range r.Header["Accept-Encoding"] {
+		if ae == "gzip" {
+			gz := gzip.NewWriter(w)
+			defer gz.Close()
+			w.Header().Set("Content-Encoding", "gzip")
+			gz.Write(a)
+			return
+		}
+	}
+	w.Write(a)
 }

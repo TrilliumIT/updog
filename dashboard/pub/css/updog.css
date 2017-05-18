@@ -58,15 +58,15 @@ td, th {
 }
 
 .failed {
-	background: #ffaaaa;
+	background: #eebbbb;
 }
 
 .degraded {
-	background: #ffd000;
+	background: #eeb000;
 }
 
 .up {
-	background: #eeffee;
+	background: #bbeebb;
 }
 
 .inh {

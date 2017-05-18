@@ -1,5 +1,5 @@
-hash: 14be753ce486d80cdba371dd39a5ebb19e18984efbf45c85def8948b9b9533ea
-updated: 2017-05-15T14:57:53.137892663-04:00
+hash: 523bb89e761b2d38f7d79ac015993344246aad6e936ad413c2bcb97fbf7f45d5
+updated: 2017-05-18T14:24:37.943660387-04:00
 imports:
 - name: bosun.org
   version: 879669a0c9ad177aa1aa439edf3b448523b982ce
@@ -20,6 +20,8 @@ imports:
   version: 6314d66e1d8ffd12a8da4be59eb4467b60dde719
   subpackages:
   - ntlm
+- name: github.com/nytimes/gziphandler
+  version: 22d4470af89e09998fc16b35029df973932df4ae
 - name: github.com/sirupsen/logrus
   version: 5e5dc898656f695e2a086b8e12559febbfc01562
 - name: golang.org/x/sys

@@ -1,9 +1,9 @@
 package dashboard
 
 import (
-	"compress/gzip"
 	"encoding/json"
 	updog "github.com/TrilliumIT/updog/types"
+	"github.com/nytimes/gziphandler"
 	log "github.com/sirupsen/logrus"
 	"mime"
 	"net/http"
@@ -21,8 +21,8 @@ func NewDashboard(apps *updog.Applications) *Dashboard {
 }
 
 func (d *Dashboard) Start() error {
-	http.HandleFunc("/", d.rootHandler)
-	http.HandleFunc("/api/", d.apiHandler)
+	http.Handle("/", gziphandler.GzipHandler(http.HandlerFunc(d.rootHandler)))
+	http.Handle("/api/", gziphandler.GzipHandler(http.HandlerFunc(d.apiHandler)))
 
 	log.Info("Starting dashboard listener...")
 	return http.ListenAndServe(":8080", nil)
@@ -49,7 +49,7 @@ func (d *Dashboard) apiHandler(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "Failed to encode json", 500)
 				return
 			}
-			sendResponse(w, r, a)
+			w.Write(a)
 		default:
 			http.NotFound(w, r)
 			return
@@ -80,18 +80,5 @@ func (d *Dashboard) rootHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", mime.TypeByExtension(filepath.Ext(f.Name())))
-	sendResponse(w, r, a)
-}
-
-func sendResponse(w http.ResponseWriter, r *http.Request, a []byte) {
-	for _, ae := range r.Header["Accept-Encoding"] {
-		if ae == "gzip" {
-			gz := gzip.NewWriter(w)
-			defer gz.Close()
-			w.Header().Set("Content-Encoding", "gzip")
-			gz.Write(a)
-			return
-		}
-	}
 	w.Write(a)
 }

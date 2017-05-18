@@ -79,6 +79,7 @@ Status:
 		select {
 		case su := <-s.updates:
 			l := log.WithField("address", su.address).WithField("status", su.status)
+			l.Debug("Recieved status update")
 			var i *Instance
 			var ok bool
 			if i, ok = s.instances[su.address]; !ok {

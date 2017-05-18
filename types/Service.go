@@ -14,11 +14,12 @@ type CheckOptions struct {
 }
 
 type ServiceStatus struct {
-	Instances  map[string]InstanceStatus
-	Up         int
-	Down       int
-	IsDegraded bool
-	IsFailed   bool
+	Instances   map[string]InstanceStatus
+	Up          int
+	Down        int
+	IsDegraded  bool
+	IsFailed    bool
+	MaxFailures int `json:"max_failures"`
 }
 
 type Service struct {
@@ -121,6 +122,7 @@ func (s *Service) GetStatus() ServiceStatus {
 	ss.Down = len(ss.Instances) - ss.Up
 	ss.IsDegraded = ss.Down > 0
 	ss.IsFailed = ss.Down > s.MaxFailures
+	ss.MaxFailures = s.MaxFailures
 
 	return ss
 }

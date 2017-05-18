@@ -37,7 +37,8 @@ func submitTSDBMetric(tsdbClient *opentsdb.Client, up bool, start, end time.Time
 	tsdbClient.Submit("updog.instance.response_time", end.Sub(start), start)
 }
 
-func (i *Instance) RunChecks(sType string, interval time.Duration, iTSDBClient *opentsdb.Client) {
+func (i *Instance) RunChecks(co *CheckOptions, iTSDBClient *opentsdb.Client) {
+	interval := time.Duration(co.Interval)
 	l := log.WithField("address", i.address)
 	l.Debug("Starting Checks")
 	time.Sleep(time.Duration(rand.Int63n(interval.Nanoseconds())))
@@ -45,13 +46,13 @@ func (i *Instance) RunChecks(sType string, interval time.Duration, iTSDBClient *
 	var up bool
 	for {
 		start := time.Now()
-		switch sType {
+		switch co.Stype {
 		case "tcp_connect":
 			up = tcpConnectCheck(i.address, interval)
 		case "http_status":
-			up = httpStatusCheck(i.address, interval)
+			up = httpStatusCheck(co.HttpMethod, i.address, interval)
 		default:
-			l.WithField("type", sType).Error("Unknown service type")
+			l.WithField("type", co.Stype).Error("Unknown service type")
 			return
 		}
 		end := time.Now()
@@ -70,11 +71,16 @@ func tcpConnectCheck(address string, timeout time.Duration) bool {
 	return err == nil
 }
 
-func httpStatusCheck(address string, timeout time.Duration) bool {
+func httpStatusCheck(method, address string, timeout time.Duration) bool {
+	l := log.WithFields(log.Fields{"method": method, "address": address, "timeout": timeout})
 	client := http.Client{Timeout: timeout, CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
 	}}
-	resp, err := client.Head(address)
+	req, err := http.NewRequest(method, address, nil)
+	if err != nil {
+		l.WithError(err).Error("Failed to create http request.")
+	}
+	resp, err := client.Do(req)
 	if err == nil {
 		defer resp.Body.Close()
 		defer io.Copy(ioutil.Discard, resp.Body)

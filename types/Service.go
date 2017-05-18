@@ -3,8 +3,15 @@ package types
 import (
 	"github.com/TrilliumIT/updog/opentsdb"
 	log "github.com/sirupsen/logrus"
+	"strings"
 	"time"
 )
+
+type CheckOptions struct {
+	Stype      string   `json:"type"`
+	HttpMethod string   `json:"http_method"`
+	Interval   Interval `json:"interval"`
+}
 
 type ServiceStatus struct {
 	Instances  map[string]InstanceStatus
@@ -15,10 +22,9 @@ type ServiceStatus struct {
 }
 
 type Service struct {
-	Instances       []string `json:"instances"`
-	MaxFailures     int      `json:"max_failures"`
-	Stype           string   `json:"type"`
-	Interval        Interval `json:"interval"`
+	Instances       []string      `json:"instances"`
+	MaxFailures     int           `json:"max_failures"`
+	CheckOptions    *CheckOptions `json:"check_options"`
 	instances       map[string]*Instance
 	updates         chan *InstanceStatusUpdate
 	getInstanceChan chan chan<- map[string]InstanceStatus
@@ -41,14 +47,31 @@ func (s *Service) StartChecks(sTSDBClient *opentsdb.Client) {
 	s.updates = make(chan *InstanceStatusUpdate)
 	s.getInstanceChan = make(chan chan<- map[string]InstanceStatus)
 
+	if s.CheckOptions == nil {
+		s.CheckOptions = &CheckOptions{}
+	}
+
+	if s.CheckOptions.Interval == 0 {
+		s.CheckOptions.Interval = Interval(10 * time.Second)
+	}
+
 	s.instances = make(map[string]*Instance)
 	for _, i := range s.Instances {
 		s.instances[i] = &Instance{address: i, update: s.updates, status: &InstanceStatus{}}
+		if s.CheckOptions.Stype == "" {
+			s.CheckOptions.Stype = "tcp_connect"
+			if strings.HasPrefix("http", i) {
+				s.CheckOptions.Stype = "http_status"
+				if s.CheckOptions.HttpMethod == "" {
+					s.CheckOptions.HttpMethod = "GET"
+				}
+			}
+		}
 	}
 
 	for addr, inst := range s.instances {
 		iTSDBClient := sTSDBClient.NewClient(map[string]string{"updog.instance": addr})
-		go inst.RunChecks(s.Stype, time.Duration(s.Interval), iTSDBClient)
+		go inst.RunChecks(s.CheckOptions, iTSDBClient)
 	}
 
 Status:

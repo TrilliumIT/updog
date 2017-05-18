@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	updog "github.com/TrilliumIT/updog/types"
 	log "github.com/sirupsen/logrus"
+	"mime"
 	"net/http"
+	"path/filepath"
 	"strings"
 )
 
@@ -43,6 +45,7 @@ func (d *Dashboard) apiHandler(w http.ResponseWriter, r *http.Request) {
 		case "applications":
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Content-Encoding", "gzip")
+			w.Header().Set("Access-Control-Allow-Origin", "*")
 			gz := gzip.NewWriter(w)
 			defer gz.Close()
 			err := json.NewEncoder(gz).Encode(d.applications.GetApplicationStatus())
@@ -72,10 +75,16 @@ func (d *Dashboard) rootHandler(w http.ResponseWriter, r *http.Request) {
 		l.Error("failed to load asset")
 		return
 	}
+	f, err := AssetInfo(url)
+	if err != nil {
+		http.NotFound(w, r)
+		l.Error("failed to load asset info")
+		return
+	}
 
 	gz := gzip.NewWriter(w)
 	defer gz.Close()
 	w.Header().Set("Content-Encoding", "gzip")
-	w.Header().Set("Content-Type", http.DetectContentType(a))
+	w.Header().Set("Content-Type", mime.TypeByExtension(filepath.Ext(f.Name())))
 	gz.Write(a)
 }

@@ -49,11 +49,11 @@ func main() {
 
 	for an, app := range conf.Applications {
 		l := log.WithField("application", an)
-		aTSDBClient := tsdbClient.NewClient(map[string]string{"updog.application": an})
+		aTSDBClient := tsdbClient.NewClient(map[string]string{"application": an})
 		app.Name = an
 		for sn, service := range app.Services {
 			l.WithField("service", sn).Info("Starting checks")
-			sTSDBClient := aTSDBClient.NewClient(map[string]string{"updog.service": sn})
+			sTSDBClient := aTSDBClient.NewClient(map[string]string{"service": sn})
 			go service.StartChecks(sTSDBClient)
 		}
 	}

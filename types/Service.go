@@ -71,7 +71,7 @@ func (s *Service) StartChecks(sTSDBClient *opentsdb.Client) {
 	}
 
 	for addr, inst := range s.instances {
-		iTSDBClient := sTSDBClient.NewClient(map[string]string{"updog.instance": addr})
+		iTSDBClient := sTSDBClient.NewClient(map[string]string{"instance": addr})
 		go inst.RunChecks(s.CheckOptions, iTSDBClient)
 	}
 
@@ -91,7 +91,7 @@ Status:
 			instancesUp, instancesDown, isDegraded, isFailed := s.getStatus()
 			sTSDBClient.Submit("updog.service.instances_up", instancesUp, su.status.TimeStamp)
 			sTSDBClient.Submit("updog.service.instances_down", instancesDown, su.status.TimeStamp)
-			sTSDBClient.Submit("updog.service.total_instances", instancesDown+instancesUp, su.status.TimeStamp)
+			sTSDBClient.Submit("updog.service.instances_total", instancesDown+instancesUp, su.status.TimeStamp)
 			sTSDBClient.Submit("updog.service.degraded", isDegraded, su.status.TimeStamp)
 			sTSDBClient.Submit("updog.service.failed", isFailed, su.status.TimeStamp)
 		case gi := <-s.getInstanceChan:

@@ -34,7 +34,10 @@ function updateApplications() {
 				if (serv.IsDegraded && !serv.IsFailed) {
 					$('#serv_'+an+'_'+sn+' .stat').text("degraded");
 					if(!$('#serv_'+an+'_'+sn+' .serv_sum').hasClass("degraded")) {
-						$('#serv_'+an+'_'+sn).children('.inst_table').slideDown()
+						$('#serv_'+an+'_'+sn).children('.inst_table').slideDown();
+						$('html, body').animate({
+							scrollTop: ($('#app_'+an).offset().top)
+						},500);
 						$('#serv_'+an+'_'+sn+' .serv_sum').removeClass("up");
 						$('#serv_'+an+'_'+sn+' .serv_sum').removeClass("degraded");
 					}
@@ -45,6 +48,9 @@ function updateApplications() {
 					$('#serv_'+an+'_'+sn+' .stat').text("failed");
 					if(!$('#serv_'+an+'_'+sn+' .serv_sum').hasClass("failed")) {
 						$('#serv_'+an+'_'+sn).children('.inst_table').slideDown()
+						$('html, body').animate({
+							scrollTop: ($('#app_'+an).offset().top)
+						},500);
 						$('#serv_'+an+'_'+sn+' .serv_sum').removeClass("up");
 						$('#serv_'+an+'_'+sn+' .serv_sum').removeClass("degraded");
 					}

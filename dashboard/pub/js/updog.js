@@ -2,7 +2,9 @@ window.setInterval(updateApplications, 5000);
 window.setInterval(updateTimestamps, 1000);
 
 function updateApplications() {
-	$.getJSON("/api/applications", function(data) {
+	var api = new RegExp('[\?&]api=([^&#]*)').exec(window.location.href)[1] || '/api/applications';
+
+	$.getJSON(api, function(data) {
 		//console.log(data);
 		$.each(data, function(an, app) {
 			if ($('#app_'+an).length == 0) {

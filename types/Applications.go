@@ -3,20 +3,20 @@ package types
 type Applications map[string]*Application
 
 type ApplicationsStatus struct {
-	Applications         map[string]*ApplicationStatus
-	Degraded             bool
-	Failed               bool
-	ApplicationsTotal    int `json:"applications_total"`
-	ApplicationsUp       int `json:"applications_up"`
-	ApplicationsDegraded int `json:"applications_degraded"`
-	ApplicationsFailed   int `json:"applications_failed"`
-	ServicesTotal        int `json:"services_total"`
-	ServicesUp           int `json:"services_up"`
-	ServicesDegraded     int `json:"services_degraded"`
-	ServicesFailed       int `json:"services_failed"`
-	InstancesTotal       int `json:"instances_total"`
-	InstancesUp          int `json:"instances_up"`
-	InstancesFailed      int `json:"instances_failed"`
+	Applications         map[string]*ApplicationStatus `json:"applications"`
+	Degraded             bool                          `json:"degraded"`
+	Failed               bool                          `json:"failed"`
+	ApplicationsTotal    int                           `json:"applications_total"`
+	ApplicationsUp       int                           `json:"applications_up"`
+	ApplicationsDegraded int                           `json:"applications_degraded"`
+	ApplicationsFailed   int                           `json:"applications_failed"`
+	ServicesTotal        int                           `json:"services_total"`
+	ServicesUp           int                           `json:"services_up"`
+	ServicesDegraded     int                           `json:"services_degraded"`
+	ServicesFailed       int                           `json:"services_failed"`
+	InstancesTotal       int                           `json:"instances_total"`
+	InstancesUp          int                           `json:"instances_up"`
+	InstancesFailed      int                           `json:"instances_failed"`
 }
 
 func (apps Applications) GetApplicationsStatus() *ApplicationsStatus {

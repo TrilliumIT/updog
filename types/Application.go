@@ -6,16 +6,16 @@ type Application struct {
 }
 
 type ApplicationStatus struct {
-	Services         map[string]*ServiceStatus
-	Degraded         bool
-	Failed           bool
-	ServicesTotal    int `json:"services_total"`
-	ServicesUp       int `json:"services_up"`
-	ServicesDegraded int `json:"services_degraded"`
-	ServicesFailed   int `json:"services_failed"`
-	InstancesTotal   int `json:"instances_total"`
-	InstancesUp      int `json:"instances_up"`
-	InstancesFailed  int `json:"instances_failed"`
+	Services         map[string]*ServiceStatus `json:"services"`
+	Degraded         bool                      `json:"degraded"`
+	Failed           bool                      `json:"failed"`
+	ServicesTotal    int                       `json:"services_total"`
+	ServicesUp       int                       `json:"services_up"`
+	ServicesDegraded int                       `json:"services_degraded"`
+	ServicesFailed   int                       `json:"services_failed"`
+	InstancesTotal   int                       `json:"instances_total"`
+	InstancesUp      int                       `json:"instances_up"`
+	InstancesFailed  int                       `json:"instances_failed"`
 }
 
 func (app *Application) GetStatus() *ApplicationStatus {

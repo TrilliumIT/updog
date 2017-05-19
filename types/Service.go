@@ -16,12 +16,12 @@ type CheckOptions struct {
 type ServiceStatus struct {
 	Instances       map[string]*InstanceStatus
 	AvgResponseTime time.Duration `json:"average_response_time"`
-	Degraded        bool
-	Failed          bool
-	MaxFailures     int `json:"max_failures"`
-	InstancesTotal  int `json:"instances_total"`
-	InstancesUp     int `json:"instances_up"`
-	InstancesFailed int `json:"instances_failed"`
+	Degraded        bool          `json:"degraded"`
+	Failed          bool          `json:"failed"`
+	MaxFailures     int           `json:"max_failures"`
+	InstancesTotal  int           `json:"instances_total"`
+	InstancesUp     int           `json:"instances_up"`
+	InstancesFailed int           `json:"instances_failed"`
 }
 
 type Service struct {

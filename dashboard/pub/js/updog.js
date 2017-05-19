@@ -58,20 +58,19 @@ function updateApplications() {
 
 				$.each(serv.instances, function(iname, inst) {
 
-					var fin = iname.replace(/\//g, "_").replace(/:/g, "_").replace(/\./g, "_");
-					if ($('#inst_'+fin).length == 0) {
-						$('#serv_'+an+'_'+sn+' table tbody').append('<tr class="instance" id="inst_'+fin+'"></tr>');
+					if ($(jq('inst_'+iname)).length == 0) {
+						$('#serv_'+an+'_'+sn+' table tbody').append('<tr class="instance" id="inst_'+iname+'"></tr>');
 					}
 					if (inst.up) {
-						$('#inst_'+fin).removeClass("failed");
-						$('#inst_'+fin).addClass("up");
+						$(jq('inst_'+iname)).removeClass("failed");
+						$(jq('inst_'+iname)).addClass("up");
 						tot_rt += inst.ResponseTime;
 					} else {
-						$('#inst_'+fin).removeClass("up");
-						$('#inst_'+fin).addClass("failed");
+						$(jq('inst_'+iname)).removeClass("up");
+						$(jq('inst_'+iname)).addClass("failed");
 					}
 
-					$('#inst_'+fin).html('<td class="ind">'+iname+'</td><td class="rtd">'+toMsFormatted(inst.response_time)+'</td><td class="lcd"><time title="'+inst.timestamp+'" ></time></td>');
+					$(jq('inst_'+iname)).html('<td class="ind">'+iname+'</td><td class="rtd">'+toMsFormatted(inst.response_time)+'</td><td class="lcd"><time title="'+inst.timestamp+'" ></time></td>');
 				});
 
 					if (serv.instances_up > 0) {
@@ -120,4 +119,8 @@ function updateTimestamps() {
 	$('time').each(function() {
 		$(this).text((moment().unix() - moment($(this).attr("title")).unix())+"s ago");
 	});
+}
+
+function jq( myid ) {
+    return "#" + myid.replace( /(\/|:|\.|\[|\]|,|=|@)/g, "\\$1" );
 }

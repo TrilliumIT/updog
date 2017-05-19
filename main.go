@@ -62,29 +62,8 @@ func main() {
 	go db.Start()
 
 	log.Println("Waiting for signal...")
-	for s := range sigs {
+	for range sigs {
 		log.Debug("Signal Recieved")
-		switch s {
-		case syscall.SIGHUP:
-			appStatus := conf.Applications.GetApplicationStatus()
-			for an, app := range appStatus {
-				l := log.WithField("application", an)
-				l.Debug("Looping services")
-				for sn, s := range app.Services {
-					l := l.WithField("service", sn)
-					l.Debug("Checking service")
-					for in, i := range s.Instances {
-						l := l.WithField("instance", in)
-						l.WithFields(log.Fields{
-							"up":            i.Up,
-							"response time": i.ResponseTime,
-							"timestamp":     i.TimeStamp,
-						}).Info("Instance Status")
-					}
-				}
-			}
-		default:
-			return
-		}
+		return
 	}
 }

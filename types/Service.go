@@ -14,43 +14,28 @@ type CheckOptions struct {
 }
 
 type ServiceStatus struct {
-	Instances   map[string]InstanceStatus
-	Up          int
-	Down        int
-	IsDegraded  bool
-	IsFailed    bool
-	MaxFailures int `json:"max_failures"`
+	Instances       map[string]*InstanceStatus
+	AvgResponseTime time.Duration `json:"average_response_time"`
+	Degraded        bool
+	Failed          bool
+	MaxFailures     int `json:"max_failures"`
+	InstancesTotal  int `json:"instances_total"`
+	InstancesUp     int `json:"instances_up"`
+	InstancesFailed int `json:"instances_failed"`
 }
 
 type Service struct {
-	Instances       []string      `json:"instances"`
-	MaxFailures     int           `json:"max_failures"`
-	CheckOptions    *CheckOptions `json:"check_options"`
-	instances       map[string]*Instance
-	updates         chan *InstanceStatusUpdate
-	getInstanceChan chan chan<- map[string]InstanceStatus
-}
-
-// this is not exported, and must only be called from within the main loop to avoid concurrent map access
-func (s *Service) getStatus() (up, down int, isDegraded, isFailed bool) {
-	total := 0
-	for _, i := range s.instances {
-		if i.status != nil {
-			total++
-		}
-		if i.status != nil && i.status.Up {
-			up++
-		}
-	}
-	down = total - up
-	isDegraded = down > 0
-	isFailed = down > s.MaxFailures
-	return
+	Instances        []string      `json:"instances"`
+	MaxFailures      int           `json:"max_failures"`
+	CheckOptions     *CheckOptions `json:"check_options"`
+	instances        map[string]*Instance
+	updates          chan *InstanceStatusUpdate
+	getServiceStatus chan chan<- *ServiceStatus
 }
 
 func (s *Service) StartChecks(sTSDBClient *opentsdb.Client) {
 	s.updates = make(chan *InstanceStatusUpdate)
-	s.getInstanceChan = make(chan chan<- map[string]InstanceStatus)
+	s.getServiceStatus = make(chan chan<- *ServiceStatus)
 
 	if s.CheckOptions == nil {
 		s.CheckOptions = &CheckOptions{}
@@ -92,45 +77,45 @@ Status:
 				continue Status
 			}
 			i.status = su.status
-			instancesUp, instancesDown, isDegraded, isFailed := s.getStatus()
-			sTSDBClient.Submit("updog.service.degraded", isDegraded, su.status.TimeStamp)
-			sTSDBClient.Submit("updog.service.failed", isFailed, su.status.TimeStamp)
-			if instancesUp+instancesDown >= len(s.instances) { // Don't send up down and total if we have unknown instances
-				sTSDBClient.Submit("updog.service.instances_up", instancesUp, su.status.TimeStamp)
-				sTSDBClient.Submit("updog.service.instances_down", instancesDown, su.status.TimeStamp)
-				sTSDBClient.Submit("updog.service.instances_total", instancesDown+instancesUp, su.status.TimeStamp)
+			ss := getStatus(s.instances, s.MaxFailures)
+			sTSDBClient.Submit("updog.service.degraded", ss.Degraded, su.status.TimeStamp)
+			sTSDBClient.Submit("updog.service.failed", ss.Failed, su.status.TimeStamp)
+			if ss.InstancesTotal >= len(s.instances) { // Don't send up down and total if we have unknown instances
+				sTSDBClient.Submit("updog.service.instances_up", ss.InstancesUp, su.status.TimeStamp)
+				sTSDBClient.Submit("updog.service.instances_failed", ss.InstancesFailed, su.status.TimeStamp)
+				sTSDBClient.Submit("updog.service.instances_total", ss.InstancesTotal, su.status.TimeStamp)
 			}
-		case gi := <-s.getInstanceChan:
-			r := make(map[string]InstanceStatus)
-			for k, v := range s.instances {
-				if v.status != nil {
-					r[k] = *v.status
-				}
-			}
-			gi <- r
+		case gi := <-s.getServiceStatus:
+			gi <- getStatus(s.instances, s.MaxFailures)
 		}
 	}
 }
 
-func (s *Service) getInstances() map[string]InstanceStatus {
-	rc := make(chan map[string]InstanceStatus)
-	s.getInstanceChan <- rc
+func (s *Service) GetStatus() *ServiceStatus {
+	rc := make(chan *ServiceStatus)
+	s.getServiceStatus <- rc
 	return <-rc
 }
 
-func (s *Service) GetStatus() ServiceStatus {
-	ss := ServiceStatus{}
-	ss.Instances = s.getInstances()
-	ss.Up = 0
-	for _, s := range ss.Instances {
-		if s.Up {
-			ss.Up++
+func getStatus(instances map[string]*Instance, maxFailures int) *ServiceStatus {
+	ss := &ServiceStatus{MaxFailures: maxFailures, Instances: make(map[string]*InstanceStatus)}
+	for in, i := range instances {
+		if i.status == nil {
+			continue
 		}
+		ss.InstancesTotal++
+		if i.status.Up {
+			ss.InstancesUp++
+		} else {
+			ss.InstancesFailed++
+			ss.Degraded = true
+		}
+		ss.AvgResponseTime += i.status.ResponseTime
+		ss.Instances[in] = i.status
 	}
-	ss.Down = len(ss.Instances) - ss.Up
-	ss.IsDegraded = ss.Down > 0
-	ss.IsFailed = ss.Down > s.MaxFailures
-	ss.MaxFailures = s.MaxFailures
-
+	if ss.InstancesTotal > 0 {
+		ss.AvgResponseTime = ss.AvgResponseTime / time.Duration(ss.InstancesTotal)
+	}
+	ss.Failed = ss.InstancesFailed > maxFailures
 	return ss
 }

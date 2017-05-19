@@ -22,7 +22,7 @@ type InstanceStatusUpdate struct {
 
 type InstanceStatus struct {
 	Up           bool
-	ResponseTime time.Duration
+	ResponseTime time.Duration `json:"response_time"`
 	TimeStamp    time.Time
 }
 

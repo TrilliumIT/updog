@@ -24,9 +24,8 @@ function updateApplications() {
 				if (!serv.IsDegraded && !serv.IsFailed) {
 					$('#serv_'+an+'_'+sn+' .stat').text("up");
 					if(!$('#serv_'+an+'_'+sn+' .serv_sum').hasClass("up")) {
-						$('#serv_'+an+'_'+sn).children('.inst_table').slideUp()
-						$('#serv_'+an+'_'+sn+' .serv_sum').removeClass("degraded");
-						$('#serv_'+an+'_'+sn+' .serv_sum').removeClass("failed");
+						$('#serv_'+an+'_'+sn).children('.inst_table').slideUp();
+						$('#serv_'+an+'_'+sn+' .serv_sum').removeClass('degraded').removeClass('failed');
 					}
 					$('#serv_'+an+'_'+sn+' .serv_sum').addClass("up");
 				}
@@ -38,8 +37,7 @@ function updateApplications() {
 						$('html, body').animate({
 							scrollTop: ($('#app_'+an).offset().top)
 						},500);
-						$('#serv_'+an+'_'+sn+' .serv_sum').removeClass("up");
-						$('#serv_'+an+'_'+sn+' .serv_sum').removeClass("degraded");
+						$('#serv_'+an+'_'+sn+' .serv_sum').removeClass('up').removeClass('failed');
 					}
 					$('#serv_'+an+'_'+sn+' .serv_sum').addClass("degraded");
 				}
@@ -47,12 +45,11 @@ function updateApplications() {
 				if (serv.IsFailed) {
 					$('#serv_'+an+'_'+sn+' .stat').text("failed");
 					if(!$('#serv_'+an+'_'+sn+' .serv_sum').hasClass("failed")) {
-						$('#serv_'+an+'_'+sn).children('.inst_table').slideDown()
+						$('#serv_'+an+'_'+sn).children('.inst_table').slideDown();
 						$('html, body').animate({
 							scrollTop: ($('#app_'+an).offset().top)
 						},500);
-						$('#serv_'+an+'_'+sn+' .serv_sum').removeClass("up");
-						$('#serv_'+an+'_'+sn+' .serv_sum').removeClass("degraded");
+						$('#serv_'+an+'_'+sn+' .serv_sum').removeClass('up').removeClass('degraded');
 					}
 					$('#serv_'+an+'_'+sn+' .serv_sum').addClass("failed");
 				}
@@ -86,7 +83,22 @@ function updateApplications() {
 					$('#serv_'+an+'_'+sn+' .nup').text(serv.Up+"/"+(serv.Down+serv.Up)+" up");
 			});
 		});
+
 		updateTimestamps();
+
+		if($('.serv_sum.failed').length > 0) {
+			$('.header').addClass("failed").removeClass('degraded').removeClass('up');
+		} else if($('.serv_sum.degraded').length > 0) {
+			$('.header').addClass("degraded").removeClass('failed').removeClass('up');
+		} else {
+			$('.header').addClass("up").removeClass('failed').removeClass('degraded');
+		}
+
+		var apps = $('.application').length;
+		var dapps = $('.application .serv_sum:not(.up):first-child').length;
+		$('.aup').text((apps-dapps)+'/'+apps+' apps');
+		$('.sup').text($('.serv_sum.up').length+'/'+$('.serv_sum').length+' services');
+		$('.iup').text($('[id^=inst].up').length+'/'+$('[id^=inst]').length+' instances');
 	});
 }
 

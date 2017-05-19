@@ -1,26 +1,61 @@
 body {
 	background-color: #eee;
+	margin: 0;
 }
 
 hr {
 	width: 100%;
 }
+
+.header {
+	background: #fff;
+	/*border-bottom: 1px solid black;*/
+	box-shadow: 0 2px 2px #888;
+	font-size: 2.5em;
+	padding: 0.1em;
+	position: fixed;
+	top: 0;
+	width: 100%;
+}
+
+.header > div {
+	display: inline-block;
+	width: 24%;
+}
+
+.header .aup, .header .sup, .header .iup {
+	font-size: 0.8em;
+	text-align: center;
+}
+
+.application:first-of-type {
+	margin-top: 4.5em;
+}
+
 .application {
 	background-color: #fff;
-	border: 1px solid black;
 	border-radius: 5px;
+	box-shadow: 2px 2px 2px #888;
 	margin: 1em;
 	padding-bottom: 1em;
+}
+
+.serv_sum {
+	cursor: hand;
+}
+
+.serv_sum:hover {
+	background: #ddddff;
 }
 
 .serv_sum > div {
 	display: inline-block;
 	font-size: 1.3em;
-	width: 25%;
 	text-align: center;
+	width: 25%;
 }
 
-.serv_sum .title {
+.serv_sum .title, .header .title {
 	text-align: left;
 }
 
@@ -33,9 +68,12 @@ hr {
 	margin: 0.2em;
 }
 
-table, tr, td, th {
-	border: 1px solid black;
+table {
 	border-collapse: collapse;
+}
+
+td {
+	border: 1px solid #888;
 }
 
 .inst_table {
@@ -43,8 +81,12 @@ table, tr, td, th {
 }
 
 .inst_table > table {
-	margin-left: 8em;
-	margin-right: 8em;
+	margin: 1em 8em;
+}
+
+.inst_table tbody {
+	border: 1px solid #888;
+	box-shadow: 2px 2px 2px #888;
 }
 
 td, th {
@@ -52,7 +94,9 @@ td, th {
 }
 
 .service {
-	border: 1px solid black;
+	border: 1px solid #888;
+	border-bottom: none;
+	box-shadow: 2px 2px 2px #888;
 	margin-left: 8em;
 	margin-right: 1em;
 }

@@ -8,53 +8,38 @@ import (
 	"mime"
 	"net/http"
 	"path/filepath"
-	"strings"
 )
 
 //go:generate go-bindata -prefix "pub/" -pkg dashboard -o bindata.go pub/...
 type Dashboard struct {
-	applications *updog.Applications
+	conf *updog.Config
 }
 
-func NewDashboard(apps *updog.Applications) *Dashboard {
-	return &Dashboard{applications: apps}
+func NewDashboard(conf *updog.Config) *Dashboard {
+	log.WithField("conf", conf).Info("Creating dashboard")
+	return &Dashboard{conf: conf}
 }
 
 func (d *Dashboard) Start() error {
+	log.Info("1 Starting dashboard listener...")
 	http.Handle("/", gziphandler.GzipHandler(http.HandlerFunc(d.rootHandler)))
-	http.Handle("/api/", gziphandler.GzipHandler(http.HandlerFunc(d.apiHandler)))
+	http.Handle("/api/applications", jsonHandler(func() interface{} { return d.conf.Applications.GetApplicationStatus() }))
+	http.Handle("/api/config", jsonHandler(func() interface{} { return d.conf }))
 
 	log.Info("Starting dashboard listener...")
 	return http.ListenAndServe(":8080", nil)
 }
 
-func (d *Dashboard) apiHandler(w http.ResponseWriter, r *http.Request) {
-	url := r.URL.Path[5:]
-	l := log.WithField("url", url)
-	l.Debug("api request")
-
-	if url == "" {
-		http.Error(w, "Invalid Request.", 400)
-		return
-	}
-
-	parts := strings.Split(url, "/")
-
-	if len(parts) > 0 {
-		switch parts[0] {
-		case "applications":
-			w.Header().Set("Content-Type", "application/json")
-			a, err := json.Marshal(d.applications.GetApplicationStatus())
-			if err != nil {
-				http.Error(w, "Failed to encode json", 500)
-				return
-			}
-			w.Write(a)
-		default:
-			http.NotFound(w, r)
+func jsonHandler(get func() interface{}) http.Handler {
+	return gziphandler.GzipHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		d := get()
+		if err := json.NewEncoder(w).Encode(get()); err != nil {
+			log.WithError(err).WithField("d", d).Error("Error encoding json")
+			http.Error(w, "Failed to encode json", 500)
 			return
 		}
-	}
+	}))
 }
 
 func (d *Dashboard) rootHandler(w http.ResponseWriter, r *http.Request) {

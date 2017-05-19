@@ -15,7 +15,7 @@ import (
 )
 
 func main() {
-	var conf *updog.Config
+	var conf *updog.Config = &updog.Config{}
 	var err error
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
@@ -36,7 +36,7 @@ func main() {
 		}
 	}
 
-	err = yaml.Unmarshal(y, &conf)
+	err = yaml.Unmarshal(y, conf)
 	if err != nil {
 		log.WithError(err).Fatal("Failed to unmarshal yaml")
 	}
@@ -58,7 +58,7 @@ func main() {
 		}
 	}
 
-	db := dashboard.NewDashboard(&conf.Applications)
+	db := dashboard.NewDashboard(conf)
 	go db.Start()
 
 	log.Println("Waiting for signal...")

@@ -27,3 +27,7 @@ func (i *Interval) UnmarshalJSON(data []byte) (err error) {
 
 	return
 }
+
+func (i Interval) MarshalJSON() ([]byte, error) {
+	return []byte(strconv.Quote(time.Duration(i).String())), nil
+}

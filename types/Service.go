@@ -33,12 +33,16 @@ type Service struct {
 
 // this is not exported, and must only be called from within the main loop to avoid concurrent map access
 func (s *Service) getStatus() (up, down int, isDegraded, isFailed bool) {
+	total := 0
 	for _, i := range s.instances {
+		if i.status != nil {
+			total++
+		}
 		if i.status != nil && i.status.Up {
 			up++
 		}
 	}
-	down = len(s.instances) - up
+	down = total - up
 	isDegraded = down > 0
 	isFailed = down > s.MaxFailures
 	return
@@ -58,7 +62,7 @@ func (s *Service) StartChecks(sTSDBClient *opentsdb.Client) {
 
 	s.instances = make(map[string]*Instance)
 	for _, i := range s.Instances {
-		s.instances[i] = &Instance{address: i, update: s.updates, status: &InstanceStatus{}}
+		s.instances[i] = &Instance{address: i, update: s.updates}
 		if s.CheckOptions.Stype == "" {
 			s.CheckOptions.Stype = "tcp_connect"
 			if strings.HasPrefix("http", i) {
@@ -89,15 +93,19 @@ Status:
 			}
 			i.status = su.status
 			instancesUp, instancesDown, isDegraded, isFailed := s.getStatus()
-			sTSDBClient.Submit("updog.service.instances_up", instancesUp, su.status.TimeStamp)
-			sTSDBClient.Submit("updog.service.instances_down", instancesDown, su.status.TimeStamp)
-			sTSDBClient.Submit("updog.service.instances_total", instancesDown+instancesUp, su.status.TimeStamp)
 			sTSDBClient.Submit("updog.service.degraded", isDegraded, su.status.TimeStamp)
 			sTSDBClient.Submit("updog.service.failed", isFailed, su.status.TimeStamp)
+			if instancesUp+instancesDown >= len(s.instances) { // Don't send up down and total if we have unknown instances
+				sTSDBClient.Submit("updog.service.instances_up", instancesUp, su.status.TimeStamp)
+				sTSDBClient.Submit("updog.service.instances_down", instancesDown, su.status.TimeStamp)
+				sTSDBClient.Submit("updog.service.instances_total", instancesDown+instancesUp, su.status.TimeStamp)
+			}
 		case gi := <-s.getInstanceChan:
 			r := make(map[string]InstanceStatus)
 			for k, v := range s.instances {
-				r[k] = *v.status
+				if v.status != nil {
+					r[k] = *v.status
+				}
 			}
 			gi <- r
 		}

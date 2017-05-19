@@ -95,7 +95,12 @@ function updateApplications() {
 		}
 
 		var apps = $('.application').length;
-		var dapps = $('.application .serv_sum:not(.up):first-child').length;
+		var dapps = 0;
+		$('.application').each(function() {
+			if ($(this).find('.serv_sum:not(.up)').length > 0) {
+				dapps += 1;
+			}
+		});
 		$('.aup').text((apps-dapps)+'/'+apps+' apps');
 		$('.sup').text($('.serv_sum.up').length+'/'+$('.serv_sum').length+' services');
 		$('.iup').text($('[id^=inst].up').length+'/'+$('[id^=inst]').length+' instances');

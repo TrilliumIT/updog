@@ -13,7 +13,7 @@ type CheckOptions struct {
 }
 
 type Service struct {
-	Instances    []string      `json:"instances"`
+	Instances    []*Instance   `json:"instances"`
 	MaxFailures  int           `json:"max_failures"`
 	CheckOptions *CheckOptions `json:"check_options"`
 	broker       *serviceBroker
@@ -107,24 +107,24 @@ func (s *Service) StartChecks() {
 		s    InstanceStatus
 	}
 	updates := make(chan *instanceStatusUpdate)
-	for _, addr := range s.Instances {
+	for _, i := range s.Instances {
 		if s.CheckOptions.Stype == "" {
 			s.CheckOptions.Stype = "tcp_connect"
-			if strings.HasPrefix("http", addr) {
+			if strings.HasPrefix("http", i.address) {
 				s.CheckOptions.Stype = "http_status"
 				if s.CheckOptions.HttpMethod == "" {
 					s.CheckOptions.HttpMethod = "GET"
 				}
 			}
 		}
-		go func(address string, co *CheckOptions) {
-			i := NewInstance(address, s.CheckOptions)
+		go func(co *CheckOptions, i *Instance) {
+			i.StartChecks(co)
 			iSub := i.Subscribe()
 			defer iSub.Close()
 			for is := range iSub.C {
-				updates <- &instanceStatusUpdate{s: is, name: address}
+				updates <- &instanceStatusUpdate{s: is, name: i.address}
 			}
-		}(addr, s.CheckOptions)
+		}(s.CheckOptions, i)
 	}
 
 	ss := ServiceStatus{MaxFailures: s.MaxFailures, Instances: make(map[string]InstanceStatus)}

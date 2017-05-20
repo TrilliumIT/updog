@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -15,7 +16,21 @@ func init() {
 }
 
 type Instance struct {
-	broker *instanceBroker
+	address string
+	broker  *instanceBroker
+}
+
+func (i *Instance) UnmarshalJSON(data []byte) (err error) {
+	s := string(data)
+	if s == "null" {
+		return
+	}
+	i.address, err = strconv.Unquote(s)
+	return
+}
+
+func (i Instance) MarshalJSON() ([]byte, error) {
+	return []byte(strconv.Quote(i.address)), nil
 }
 
 func (i *Instance) GetStatus() InstanceStatus {
@@ -83,8 +98,10 @@ func newInstanceBroker() *instanceBroker {
 	return b
 }
 
-func NewInstance(address string, co *CheckOptions) *Instance {
-	i := &Instance{broker: newInstanceBroker()}
+func (i *Instance) StartChecks(co *CheckOptions) {
+	if i.broker == nil {
+		i.broker = newInstanceBroker()
+	}
 	interval := time.Duration(co.Interval)
 	time.Sleep(time.Duration(rand.Int63n(interval.Nanoseconds())))
 	t := time.NewTicker(interval)
@@ -93,12 +110,12 @@ func NewInstance(address string, co *CheckOptions) *Instance {
 		start := time.Now()
 		switch co.Stype {
 		case "tcp_connect":
-			up = tcpConnectCheck(address, interval)
+			up = tcpConnectCheck(i.address, interval)
 		case "http_status":
-			up = httpStatusCheck(co.HttpMethod, address, interval)
+			up = httpStatusCheck(co.HttpMethod, i.address, interval)
 		default:
 			log.WithField("type", co.Stype).Error("Unknown service type")
-			return nil
+			return
 		}
 		end := time.Now()
 		st := InstanceStatus{Up: up, ResponseTime: end.Sub(start), TimeStamp: start}

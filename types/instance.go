@@ -15,11 +15,6 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-type InstanceStatusUpdate struct {
-	address string
-	status  *InstanceStatus
-}
-
 type InstanceStatus struct {
 	Up           bool          `json:"up"`
 	ResponseTime time.Duration `json:"response_time"`
@@ -27,17 +22,59 @@ type InstanceStatus struct {
 }
 
 type Instance struct {
-	status  *InstanceStatus
-	address string
-	update  chan *InstanceStatusUpdate
+	broker *instanceBroker
 }
 
-func submitTSDBMetric(tsdbClient *opentsdb.Client, up bool, start, end time.Time) {
-	tsdbClient.Submit("updog.instance.up", up, start)
-	tsdbClient.Submit("updog.instance.response_time", end.Sub(start), start)
+type instanceBroker struct {
+	notifier       chan *InstanceStatus
+	newClients     chan chan *InstanceStatus
+	closingClients chan chan *InstanceStatus
+	clients        map[chan *InstanceStatus]struct{}
 }
 
-func (i *Instance) RunChecks(co *CheckOptions, iTSDBClient *opentsdb.Client) {
+type InstanceSubscription struct {
+	C     chan InstanceStatus
+	close chan chan InstanceStatus
+}
+
+func (i *Instance) Subscribe() *InstanceSubscription {
+	r := &InstanceSubscription{C: make(chan InstanceStatus), close: i.broker.closingClients}
+	i.broker.newClients <- r.C
+	return r
+}
+
+func (s *InstanceSubscription) Close() {
+	s.close <- s.C
+	close(s.C)
+}
+
+func newInstanceBroker() *instanceBroker {
+	b := &instanceBroker{
+		notifier:       make(chan InstanceStatus),
+		newClients:     make(chan chan InstanceStatus),
+		closingClients: make(chan chan InstanceStatus),
+		clients:        make(map[chan InstanceStatus]struct{}),
+	}
+	go func() {
+		for {
+			select {
+			case c := <-b.newClients:
+				b.clients[c] = struct{}{}
+			case c := <-b.closingClients:
+				delete(b.clients, c)
+			case is := <-s.notifier:
+				for c := range s.clients {
+					go func(c chan InstanceStatus, ss InstanceStatus) {
+						c <- ss
+					}(c, ss)
+				}
+			}
+		}
+	}()
+}
+
+func NewInstance(address string, co *CheckOptions) *Instance {
+	i := &Instance{broker: newInstanceBroker}
 	interval := time.Duration(co.Interval)
 	l := log.WithField("address", i.address)
 	l.Debug("Starting Checks")
@@ -48,17 +85,16 @@ func (i *Instance) RunChecks(co *CheckOptions, iTSDBClient *opentsdb.Client) {
 		start := time.Now()
 		switch co.Stype {
 		case "tcp_connect":
-			up = tcpConnectCheck(i.address, interval)
+			up = tcpConnectCheck(address, interval)
 		case "http_status":
-			up = httpStatusCheck(co.HttpMethod, i.address, interval)
+			up = httpStatusCheck(co.HttpMethod, address, interval)
 		default:
 			l.WithField("type", co.Stype).Error("Unknown service type")
 			return
 		}
 		end := time.Now()
-		submitTSDBMetric(iTSDBClient, up, start, end)
-		st := &InstanceStatus{Up: up, ResponseTime: end.Sub(start), TimeStamp: end}
-		i.update <- &InstanceStatusUpdate{address: i.address, status: st}
+		st := InstanceStatus{Up: up, ResponseTime: end.Sub(start), TimeStamp: start}
+		go func() { i.broker.notifier <- st }()
 		<-t.C
 	}
 }

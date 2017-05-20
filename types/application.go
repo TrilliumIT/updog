@@ -5,6 +5,32 @@ type Application struct {
 	broker   *applicationBroker
 }
 
+func (a *Application) GetStatus() ApplicationStatus {
+	sub := a.Subscribe()
+	defer sub.Close()
+	return <-sub.C
+}
+
+type ApplicationSubscription struct {
+	C     chan ApplicationStatus
+	close chan chan ApplicationStatus
+}
+
+func (a *Application) Subscribe() *ApplicationSubscription {
+	if a.broker == nil {
+		a.broker = newApplicationBroker()
+		go a.startSubscriptions()
+	}
+	r := &ApplicationSubscription{C: make(chan ApplicationStatus), close: a.broker.closingClients}
+	a.broker.newClients <- r.C
+	return r
+}
+
+func (a *ApplicationSubscription) Close() {
+	a.close <- a.C
+	close(a.C)
+}
+
 type ApplicationStatus struct {
 	Services         map[string]ServiceStatus `json:"services"`
 	Degraded         bool                     `json:"degraded"`
@@ -23,32 +49,6 @@ type applicationBroker struct {
 	newClients     chan chan ApplicationStatus
 	closingClients chan chan ApplicationStatus
 	clients        map[chan ApplicationStatus]struct{}
-}
-
-type ApplicationSubscription struct {
-	C     chan ApplicationStatus
-	close chan chan ApplicationStatus
-}
-
-func (a *Application) GetStatus() ApplicationStatus {
-	sub := a.Subscribe()
-	defer sub.Close()
-	return <-sub.C
-}
-
-func (a *Application) Subscribe() *ApplicationSubscription {
-	if a.broker == nil {
-		a.broker = newApplicationBroker()
-		go a.startSubscriptions()
-	}
-	r := &ApplicationSubscription{C: make(chan ApplicationStatus), close: a.broker.closingClients}
-	a.broker.newClients <- r.C
-	return r
-}
-
-func (a *ApplicationSubscription) Close() {
-	a.close <- a.C
-	close(a.C)
 }
 
 func newApplicationBroker() *applicationBroker {

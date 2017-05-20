@@ -14,32 +14,19 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-type InstanceStatus struct {
-	Up           bool          `json:"up"`
-	ResponseTime time.Duration `json:"response_time"`
-	TimeStamp    time.Time     `json:"timestamp"`
-}
-
 type Instance struct {
 	broker *instanceBroker
-}
-
-type instanceBroker struct {
-	notifier       chan InstanceStatus
-	newClients     chan chan InstanceStatus
-	closingClients chan chan InstanceStatus
-	clients        map[chan InstanceStatus]struct{}
-}
-
-type InstanceSubscription struct {
-	C     chan InstanceStatus
-	close chan chan InstanceStatus
 }
 
 func (i *Instance) GetStatus() InstanceStatus {
 	s := i.Subscribe()
 	defer s.Close()
 	return <-s.C
+}
+
+type InstanceSubscription struct {
+	C     chan InstanceStatus
+	close chan chan InstanceStatus
 }
 
 func (i *Instance) Subscribe() *InstanceSubscription {
@@ -51,6 +38,19 @@ func (i *Instance) Subscribe() *InstanceSubscription {
 func (s *InstanceSubscription) Close() {
 	s.close <- s.C
 	close(s.C)
+}
+
+type InstanceStatus struct {
+	Up           bool          `json:"up"`
+	ResponseTime time.Duration `json:"response_time"`
+	TimeStamp    time.Time     `json:"timestamp"`
+}
+
+type instanceBroker struct {
+	notifier       chan InstanceStatus
+	newClients     chan chan InstanceStatus
+	closingClients chan chan InstanceStatus
+	clients        map[chan InstanceStatus]struct{}
 }
 
 func newInstanceBroker() *instanceBroker {

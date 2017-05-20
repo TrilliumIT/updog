@@ -12,6 +12,35 @@ type CheckOptions struct {
 	Interval   Interval `json:"interval"`
 }
 
+type Service struct {
+	Instances    []string      `json:"instances"`
+	MaxFailures  int           `json:"max_failures"`
+	CheckOptions *CheckOptions `json:"check_options"`
+	broker       *serviceBroker
+}
+
+func (s *Service) GetStatus() ServiceStatus {
+	sub := s.Subscribe()
+	defer sub.Close()
+	return <-sub.C
+}
+
+type ServiceSubscription struct {
+	C     chan ServiceStatus
+	close chan chan ServiceStatus
+}
+
+func (s *Service) Subscribe() *ServiceSubscription {
+	r := &ServiceSubscription{C: make(chan ServiceStatus), close: s.broker.closingClients}
+	s.broker.newClients <- r.C
+	return r
+}
+
+func (s *ServiceSubscription) Close() {
+	s.close <- s.C
+	close(s.C)
+}
+
 type ServiceStatus struct {
 	Instances       map[string]InstanceStatus `json:"instances"`
 	AvgResponseTime time.Duration             `json:"average_response_time"`
@@ -28,28 +57,6 @@ type serviceBroker struct {
 	newClients     chan chan ServiceStatus
 	closingClients chan chan ServiceStatus
 	clients        map[chan ServiceStatus]struct{}
-}
-
-type ServiceSubscription struct {
-	C     chan ServiceStatus
-	close chan chan ServiceStatus
-}
-
-func (s *Service) GetStatus() ServiceStatus {
-	sub := s.Subscribe()
-	defer sub.Close()
-	return <-sub.C
-}
-
-func (s *Service) Subscribe() *ServiceSubscription {
-	r := &ServiceSubscription{C: make(chan ServiceStatus), close: s.broker.closingClients}
-	s.broker.newClients <- r.C
-	return r
-}
-
-func (s *ServiceSubscription) Close() {
-	s.close <- s.C
-	close(s.C)
 }
 
 func newServiceBroker() *serviceBroker {
@@ -80,13 +87,6 @@ func newServiceBroker() *serviceBroker {
 		}
 	}()
 	return b
-}
-
-type Service struct {
-	Instances    []string      `json:"instances"`
-	MaxFailures  int           `json:"max_failures"`
-	CheckOptions *CheckOptions `json:"check_options"`
-	broker       *serviceBroker
 }
 
 func (s *Service) StartChecks() {

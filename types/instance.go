@@ -1,7 +1,6 @@
 package types
 
 import (
-	"github.com/TrilliumIT/updog/opentsdb"
 	log "github.com/sirupsen/logrus"
 	"io"
 	"io/ioutil"
@@ -26,15 +25,21 @@ type Instance struct {
 }
 
 type instanceBroker struct {
-	notifier       chan *InstanceStatus
-	newClients     chan chan *InstanceStatus
-	closingClients chan chan *InstanceStatus
-	clients        map[chan *InstanceStatus]struct{}
+	notifier       chan InstanceStatus
+	newClients     chan chan InstanceStatus
+	closingClients chan chan InstanceStatus
+	clients        map[chan InstanceStatus]struct{}
 }
 
 type InstanceSubscription struct {
 	C     chan InstanceStatus
 	close chan chan InstanceStatus
+}
+
+func (i *Instance) GetStatus() InstanceStatus {
+	s := i.Subscribe()
+	defer s.Close()
+	return <-s.C
 }
 
 func (i *Instance) Subscribe() *InstanceSubscription {
@@ -56,28 +61,31 @@ func newInstanceBroker() *instanceBroker {
 		clients:        make(map[chan InstanceStatus]struct{}),
 	}
 	go func() {
+		var is InstanceStatus
 		for {
 			select {
 			case c := <-b.newClients:
 				b.clients[c] = struct{}{}
+				go func(c chan InstanceStatus, is InstanceStatus) {
+					c <- is
+				}(c, is)
 			case c := <-b.closingClients:
 				delete(b.clients, c)
-			case is := <-s.notifier:
-				for c := range s.clients {
-					go func(c chan InstanceStatus, ss InstanceStatus) {
-						c <- ss
-					}(c, ss)
+			case is = <-b.notifier:
+				for c := range b.clients {
+					go func(c chan InstanceStatus, is InstanceStatus) {
+						c <- is
+					}(c, is)
 				}
 			}
 		}
 	}()
+	return b
 }
 
 func NewInstance(address string, co *CheckOptions) *Instance {
-	i := &Instance{broker: newInstanceBroker}
+	i := &Instance{broker: newInstanceBroker()}
 	interval := time.Duration(co.Interval)
-	l := log.WithField("address", i.address)
-	l.Debug("Starting Checks")
 	time.Sleep(time.Duration(rand.Int63n(interval.Nanoseconds())))
 	t := time.NewTicker(interval)
 	var up bool
@@ -89,8 +97,8 @@ func NewInstance(address string, co *CheckOptions) *Instance {
 		case "http_status":
 			up = httpStatusCheck(co.HttpMethod, address, interval)
 		default:
-			l.WithField("type", co.Stype).Error("Unknown service type")
-			return
+			log.WithField("type", co.Stype).Error("Unknown service type")
+			return nil
 		}
 		end := time.Now()
 		st := InstanceStatus{Up: up, ResponseTime: end.Sub(start), TimeStamp: start}

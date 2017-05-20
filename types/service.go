@@ -1,7 +1,6 @@
 package types
 
 import (
-	"github.com/TrilliumIT/updog/opentsdb"
 	log "github.com/sirupsen/logrus"
 	"strings"
 	"time"
@@ -14,29 +13,83 @@ type CheckOptions struct {
 }
 
 type ServiceStatus struct {
-	Instances       map[string]*InstanceStatus `json:"instances"`
-	AvgResponseTime time.Duration              `json:"average_response_time"`
-	Degraded        bool                       `json:"degraded"`
-	Failed          bool                       `json:"failed"`
-	MaxFailures     int                        `json:"max_failures"`
-	InstancesTotal  int                        `json:"instances_total"`
-	InstancesUp     int                        `json:"instances_up"`
-	InstancesFailed int                        `json:"instances_failed"`
+	Instances       map[string]InstanceStatus `json:"instances"`
+	AvgResponseTime time.Duration             `json:"average_response_time"`
+	Degraded        bool                      `json:"degraded"`
+	Failed          bool                      `json:"failed"`
+	MaxFailures     int                       `json:"max_failures"`
+	InstancesTotal  int                       `json:"instances_total"`
+	InstancesUp     int                       `json:"instances_up"`
+	InstancesFailed int                       `json:"instances_failed"`
+}
+
+type serviceBroker struct {
+	notifier       chan ServiceStatus
+	newClients     chan chan ServiceStatus
+	closingClients chan chan ServiceStatus
+	clients        map[chan ServiceStatus]struct{}
+}
+
+type ServiceSubscription struct {
+	C     chan ServiceStatus
+	close chan chan ServiceStatus
+}
+
+func (s *Service) GetStatus() ServiceStatus {
+	sub := s.Subscribe()
+	defer sub.Close()
+	return <-sub.C
+}
+
+func (s *Service) Subscribe() *ServiceSubscription {
+	r := &ServiceSubscription{C: make(chan ServiceStatus), close: s.broker.closingClients}
+	s.broker.newClients <- r.C
+	return r
+}
+
+func (s *ServiceSubscription) Close() {
+	s.close <- s.C
+	close(s.C)
+}
+
+func newServiceBroker() *serviceBroker {
+	b := &serviceBroker{
+		notifier:       make(chan ServiceStatus),
+		newClients:     make(chan chan ServiceStatus),
+		closingClients: make(chan chan ServiceStatus),
+		clients:        make(map[chan ServiceStatus]struct{}),
+	}
+	go func() {
+		var ss ServiceStatus
+		for {
+			select {
+			case c := <-b.newClients:
+				b.clients[c] = struct{}{}
+				go func(c chan ServiceStatus, ss ServiceStatus) {
+					c <- ss
+				}(c, ss)
+			case c := <-b.closingClients:
+				delete(b.clients, c)
+			case ss = <-b.notifier:
+				for c := range b.clients {
+					go func(c chan ServiceStatus, ss ServiceStatus) {
+						c <- ss
+					}(c, ss)
+				}
+			}
+		}
+	}()
+	return b
 }
 
 type Service struct {
-	Instances        []string      `json:"instances"`
-	MaxFailures      int           `json:"max_failures"`
-	CheckOptions     *CheckOptions `json:"check_options"`
-	instances        map[string]*Instance
-	updates          chan *InstanceStatusUpdate
-	getServiceStatus chan chan<- *ServiceStatus
+	Instances    []string      `json:"instances"`
+	MaxFailures  int           `json:"max_failures"`
+	CheckOptions *CheckOptions `json:"check_options"`
+	broker       *serviceBroker
 }
 
-func (s *Service) StartChecks(sTSDBClient *opentsdb.Client) {
-	s.updates = make(chan *InstanceStatusUpdate)
-	s.getServiceStatus = make(chan chan<- *ServiceStatus)
-
+func (s *Service) StartChecks() {
 	if s.CheckOptions == nil {
 		s.CheckOptions = &CheckOptions{}
 	}
@@ -45,77 +98,65 @@ func (s *Service) StartChecks(sTSDBClient *opentsdb.Client) {
 		s.CheckOptions.Interval = Interval(10 * time.Second)
 	}
 
-	s.instances = make(map[string]*Instance)
-	for _, i := range s.Instances {
-		s.instances[i] = &Instance{address: i, update: s.updates}
+	if s.broker == nil {
+		s.broker = newServiceBroker()
+	}
+
+	type instanceStatusUpdate struct {
+		name string
+		s    InstanceStatus
+	}
+	updates := make(chan *instanceStatusUpdate)
+	for _, addr := range s.Instances {
 		if s.CheckOptions.Stype == "" {
 			s.CheckOptions.Stype = "tcp_connect"
-			if strings.HasPrefix("http", i) {
+			if strings.HasPrefix("http", addr) {
 				s.CheckOptions.Stype = "http_status"
 				if s.CheckOptions.HttpMethod == "" {
 					s.CheckOptions.HttpMethod = "GET"
 				}
 			}
 		}
+		go func(address string, co *CheckOptions) {
+			i := NewInstance(address, s.CheckOptions)
+			iSub := i.Subscribe()
+			defer iSub.Close()
+			for is := range iSub.C {
+				updates <- &instanceStatusUpdate{s: is, name: address}
+			}
+		}(addr, s.CheckOptions)
 	}
 
-	for addr, inst := range s.instances {
-		iTSDBClient := sTSDBClient.NewClient(map[string]string{"instance": addr})
-		go inst.RunChecks(s.CheckOptions, iTSDBClient)
-	}
-
-Status:
-	for {
-		select {
-		case su := <-s.updates:
-			l := log.WithField("address", su.address).WithField("status", su.status)
-			l.Debug("Recieved status update")
-			var i *Instance
-			var ok bool
-			if i, ok = s.instances[su.address]; !ok {
-				l.Warn("Recieved status update for unknown instance")
-				continue Status
-			}
-			i.status = su.status
-			ss := getStatus(s.instances, s.MaxFailures)
-			sTSDBClient.Submit("updog.service.degraded", ss.Degraded, su.status.TimeStamp)
-			sTSDBClient.Submit("updog.service.failed", ss.Failed, su.status.TimeStamp)
-			if ss.InstancesTotal >= len(s.instances) { // Don't send up down and total if we have unknown instances
-				sTSDBClient.Submit("updog.service.instances_up", ss.InstancesUp, su.status.TimeStamp)
-				sTSDBClient.Submit("updog.service.instances_failed", ss.InstancesFailed, su.status.TimeStamp)
-				sTSDBClient.Submit("updog.service.instances_total", ss.InstancesTotal, su.status.TimeStamp)
-			}
-		case gi := <-s.getServiceStatus:
-			gi <- getStatus(s.instances, s.MaxFailures)
-		}
+	ss := ServiceStatus{MaxFailures: s.MaxFailures, Instances: make(map[string]InstanceStatus)}
+	for isu := range updates {
+		l := log.WithField("name", isu.name).WithField("status", isu.s)
+		l.Debug("Recieved status update")
+		ss.Instances[isu.name] = isu.s
+		ss.recalculate()
+		go func(ss ServiceStatus) { s.broker.notifier <- ss }(ss)
 	}
 }
 
-func (s *Service) GetStatus() *ServiceStatus {
-	rc := make(chan *ServiceStatus)
-	s.getServiceStatus <- rc
-	return <-rc
-}
-
-func getStatus(instances map[string]*Instance, maxFailures int) *ServiceStatus {
-	ss := &ServiceStatus{MaxFailures: maxFailures, Instances: make(map[string]*InstanceStatus)}
-	for in, i := range instances {
-		if i.status == nil {
-			continue
-		}
+func (ss *ServiceStatus) recalculate() {
+	ss.InstancesTotal = 0
+	ss.InstancesFailed = 0
+	ss.InstancesUp = 0
+	ss.AvgResponseTime = time.Duration(0)
+	ss.Degraded = false
+	ss.Failed = false
+	for _, is := range ss.Instances {
 		ss.InstancesTotal++
-		if i.status.Up {
+		if is.Up {
 			ss.InstancesUp++
 		} else {
 			ss.InstancesFailed++
 			ss.Degraded = true
 		}
-		ss.AvgResponseTime += i.status.ResponseTime
-		ss.Instances[in] = i.status
+		ss.AvgResponseTime += is.ResponseTime
 	}
 	if ss.InstancesTotal > 0 {
 		ss.AvgResponseTime = ss.AvgResponseTime / time.Duration(ss.InstancesTotal)
 	}
-	ss.Failed = ss.InstancesFailed > maxFailures
-	return ss
+	ss.Failed = ss.InstancesFailed > ss.MaxFailures
+	return
 }

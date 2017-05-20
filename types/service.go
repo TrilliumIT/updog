@@ -3,6 +3,7 @@ package types
 import (
 	log "github.com/sirupsen/logrus"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -17,6 +18,7 @@ type Service struct {
 	MaxFailures  int           `json:"max_failures"`
 	CheckOptions *CheckOptions `json:"check_options"`
 	broker       *serviceBroker
+	brokerLock   sync.Mutex
 }
 
 func (s *Service) GetStatus() ServiceStatus {
@@ -31,6 +33,13 @@ type ServiceSubscription struct {
 }
 
 func (s *Service) Subscribe() *ServiceSubscription {
+	if s.broker == nil {
+		s.brokerLock.Lock()
+		if s.broker == nil {
+			s.broker = newServiceBroker()
+		}
+		s.brokerLock.Unlock()
+	}
 	r := &ServiceSubscription{C: make(chan ServiceStatus), close: s.broker.closingClients}
 	s.broker.newClients <- r.C
 	return r
@@ -98,7 +107,11 @@ func (s *Service) StartChecks() {
 	}
 
 	if s.broker == nil {
-		s.broker = newServiceBroker()
+		s.brokerLock.Lock()
+		if s.broker == nil {
+			s.broker = newServiceBroker()
+		}
+		s.brokerLock.Unlock()
 	}
 
 	type instanceStatusUpdate struct {

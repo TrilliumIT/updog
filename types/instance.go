@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -16,8 +17,9 @@ func init() {
 }
 
 type Instance struct {
-	address string
-	broker  *instanceBroker
+	address    string
+	broker     *instanceBroker
+	brokerLock sync.Mutex
 }
 
 func (i *Instance) UnmarshalJSON(data []byte) (err error) {
@@ -41,6 +43,13 @@ type InstanceSubscription struct {
 }
 
 func (i *Instance) Subscribe() *InstanceSubscription {
+	if i.broker == nil {
+		i.brokerLock.Lock()
+		if i.broker == nil {
+			i.broker = newInstanceBroker()
+		}
+		i.brokerLock.Unlock()
+	}
 	r := &InstanceSubscription{C: make(chan InstanceStatus), close: i.broker.closingClients}
 	i.broker.newClients <- r.C
 	return r
@@ -97,9 +106,15 @@ func newInstanceBroker() *instanceBroker {
 
 func (i *Instance) StartChecks(co *CheckOptions) {
 	log.WithField("Address", i.address).Debug("Starting checks")
+
 	if i.broker == nil {
-		i.broker = newInstanceBroker()
+		i.brokerLock.Lock()
+		if i.broker == nil {
+			i.broker = newInstanceBroker()
+		}
+		i.brokerLock.Unlock()
 	}
+
 	interval := time.Duration(co.Interval)
 	go func() {
 		time.Sleep(time.Duration(rand.Int63n(interval.Nanoseconds())))

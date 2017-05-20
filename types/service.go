@@ -38,7 +38,6 @@ func (s *Service) Subscribe() *ServiceSubscription {
 
 func (s *ServiceSubscription) Close() {
 	s.close <- s.C
-	close(s.C)
 }
 
 type ServiceStatus struct {

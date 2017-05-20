@@ -8,7 +8,7 @@ import (
 	"syscall"
 
 	"github.com/TrilliumIT/updog/dashboard"
-	"github.com/TrilliumIT/updog/opentsdb"
+	//"github.com/TrilliumIT/updog/opentsdb"
 	updog "github.com/TrilliumIT/updog/types"
 	"github.com/ghodss/yaml"
 	log "github.com/sirupsen/logrus"
@@ -22,7 +22,7 @@ func main() {
 
 	var confPath = flag.String("config", "config.yaml", "path to configuration file")
 	var debug = flag.Bool("debug", false, "debug logging")
-	var subscribe = flag.Bool("subscribe", false, "Subscribe to all events on stdout")
+	//var subscribe = flag.Bool("subscribe", false, "Subscribe to all events on stdout")
 	flag.Parse()
 
 	if *debug {
@@ -46,16 +46,15 @@ func main() {
 	if sourceHost == "" {
 		sourceHost, _ = os.Hostname()
 	}
-	tsdbClient := opentsdb.NewClient(conf.OpenTSDBAddress, map[string]string{"host": sourceHost})
+	//tsdbClient := opentsdb.NewClient(conf.OpenTSDBAddress, map[string]string{"host": sourceHost})
 
-	for an, app := range conf.Applications {
+	for an, app := range conf.Applications.Applications {
 		l := log.WithField("application", an)
-		aTSDBClient := tsdbClient.NewClient(map[string]string{"application": an})
-		app.Name = an
+		//aTSDBClient := tsdbClient.NewClient(map[string]string{"application": an})
 		for sn, service := range app.Services {
 			l.WithField("service", sn).Info("Starting checks")
-			sTSDBClient := aTSDBClient.NewClient(map[string]string{"service": sn})
-			go service.StartChecks(sTSDBClient)
+			//sTSDBClient := aTSDBClient.NewClient(map[string]string{"service": sn})
+			go service.StartChecks()
 		}
 	}
 

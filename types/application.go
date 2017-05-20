@@ -28,7 +28,6 @@ func (a *Application) Subscribe() *ApplicationSubscription {
 
 func (a *ApplicationSubscription) Close() {
 	a.close <- a.C
-	close(a.C)
 }
 
 type ApplicationStatus struct {
@@ -96,7 +95,7 @@ func (a *Application) startSubscriptions() {
 			}
 		}(sn, s)
 	}
-	as := ApplicationStatus{}
+	as := ApplicationStatus{Services: make(map[string]ServiceStatus)}
 	for su := range updates {
 		as.Services[su.name] = su.s
 		as.recalculate()

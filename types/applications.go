@@ -1,8 +1,20 @@
 package types
 
+import (
+	"encoding/json"
+)
+
 type Applications struct {
 	Applications map[string]*Application
 	broker       *applicationsBroker
+}
+
+func (a *Applications) UnmarshalJSON(data []byte) (err error) {
+	return json.Unmarshal(data, &a.Applications)
+}
+
+func (a Applications) MarshalJSON() ([]byte, error) {
+	return json.Marshal(a.Applications)
 }
 
 func (a *Applications) GetStatus() ApplicationsStatus {
@@ -28,7 +40,6 @@ func (a *Applications) Subscribe() *ApplicationsSubscription {
 
 func (a *ApplicationsSubscription) Close() {
 	a.close <- a.C
-	close(a.C)
 }
 
 type ApplicationsStatus struct {
@@ -100,7 +111,7 @@ func (a *Applications) startSubscriptions() {
 			}
 		}(an, a)
 	}
-	as := ApplicationsStatus{}
+	as := ApplicationsStatus{Applications: make(map[string]ApplicationStatus)}
 	for au := range updates {
 		as.Applications[au.name] = au.s
 		as.recalculate()

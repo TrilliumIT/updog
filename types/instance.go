@@ -1,13 +1,13 @@
 package types
 
 import (
+	"encoding/json"
 	log "github.com/sirupsen/logrus"
 	"io"
 	"io/ioutil"
 	"math/rand"
 	"net"
 	"net/http"
-	"strconv"
 	"time"
 )
 
@@ -21,16 +21,11 @@ type Instance struct {
 }
 
 func (i *Instance) UnmarshalJSON(data []byte) (err error) {
-	s := string(data)
-	if s == "null" {
-		return
-	}
-	i.address, err = strconv.Unquote(s)
-	return
+	return json.Unmarshal(data, &i.address)
 }
 
 func (i Instance) MarshalJSON() ([]byte, error) {
-	return []byte(strconv.Quote(i.address)), nil
+	return json.Marshal(i.address)
 }
 
 func (i *Instance) GetStatus() InstanceStatus {
@@ -52,7 +47,6 @@ func (i *Instance) Subscribe() *InstanceSubscription {
 
 func (s *InstanceSubscription) Close() {
 	s.close <- s.C
-	close(s.C)
 }
 
 type InstanceStatus struct {

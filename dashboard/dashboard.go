@@ -23,7 +23,7 @@ func NewDashboard(conf *updog.Config) *Dashboard {
 func (d *Dashboard) Start() error {
 	log.Info("1 Starting dashboard listener...")
 	http.Handle("/", gziphandler.GzipHandler(http.HandlerFunc(d.rootHandler)))
-	http.Handle("/api/applications", jsonHandler(func() interface{} { return d.conf.Applications.GetApplicationsStatus() }))
+	http.Handle("/api/applications", jsonHandler(func() interface{} { return d.conf.Applications.GetStatus() }))
 	http.Handle("/api/config", jsonHandler(func() interface{} { return d.conf }))
 
 	log.Info("Starting dashboard listener...")

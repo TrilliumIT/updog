@@ -22,6 +22,7 @@ func main() {
 
 	var confPath = flag.String("config", "config.yaml", "path to configuration file")
 	var debug = flag.Bool("debug", false, "debug logging")
+	var subscribe = flag.Bool("subscribe", false, "Subscribe to all events on stdout")
 	flag.Parse()
 
 	if *debug {

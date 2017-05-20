@@ -29,6 +29,7 @@ func (i Instance) MarshalJSON() ([]byte, error) {
 }
 
 func (i *Instance) GetStatus() InstanceStatus {
+	log.WithField("address", i.address).Debug("Getstatus")
 	s := i.Subscribe()
 	defer s.Close()
 	return <-s.C
@@ -74,6 +75,7 @@ func newInstanceBroker() *instanceBroker {
 		for {
 			select {
 			case c := <-b.newClients:
+				log.WithField("b", b).WithField("is", is).Debug("newClient")
 				b.clients[c] = struct{}{}
 				go func(c chan InstanceStatus, is InstanceStatus) {
 					c <- is
@@ -81,6 +83,7 @@ func newInstanceBroker() *instanceBroker {
 			case c := <-b.closingClients:
 				delete(b.clients, c)
 			case is = <-b.notifier:
+				log.WithField("b", b).WithField("is", is).Debug("Notified")
 				for c := range b.clients {
 					go func(c chan InstanceStatus, is InstanceStatus) {
 						c <- is
@@ -93,29 +96,32 @@ func newInstanceBroker() *instanceBroker {
 }
 
 func (i *Instance) StartChecks(co *CheckOptions) {
+	log.WithField("Address", i.address).Debug("Starting checks")
 	if i.broker == nil {
 		i.broker = newInstanceBroker()
 	}
 	interval := time.Duration(co.Interval)
-	time.Sleep(time.Duration(rand.Int63n(interval.Nanoseconds())))
-	t := time.NewTicker(interval)
-	var up bool
-	for {
-		start := time.Now()
-		switch co.Stype {
-		case "tcp_connect":
-			up = tcpConnectCheck(i.address, interval)
-		case "http_status":
-			up = httpStatusCheck(co.HttpMethod, i.address, interval)
-		default:
-			log.WithField("type", co.Stype).Error("Unknown service type")
-			return
+	go func() {
+		time.Sleep(time.Duration(rand.Int63n(interval.Nanoseconds())))
+		t := time.NewTicker(interval)
+		var up bool
+		for {
+			start := time.Now()
+			switch co.Stype {
+			case "tcp_connect":
+				up = tcpConnectCheck(i.address, interval)
+			case "http_status":
+				up = httpStatusCheck(co.HttpMethod, i.address, interval)
+			default:
+				log.WithField("type", co.Stype).Error("Unknown service type")
+				return
+			}
+			end := time.Now()
+			st := InstanceStatus{Up: up, ResponseTime: end.Sub(start), TimeStamp: start}
+			go func() { i.broker.notifier <- st }()
+			<-t.C
 		}
-		end := time.Now()
-		st := InstanceStatus{Up: up, ResponseTime: end.Sub(start), TimeStamp: start}
-		go func() { i.broker.notifier <- st }()
-		<-t.C
-	}
+	}()
 }
 
 func tcpConnectCheck(address string, timeout time.Duration) bool {

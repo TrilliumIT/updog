@@ -31,7 +31,7 @@ type ApplicationsSubscription struct {
 func (a *Applications) Subscribe() *ApplicationsSubscription {
 	if a.broker == nil {
 		a.broker = newApplicationsBroker()
-		go a.startSubscriptions()
+		a.startSubscriptions()
 	}
 	r := &ApplicationsSubscription{C: make(chan ApplicationsStatus), close: a.broker.closingClients}
 	a.broker.newClients <- r.C
@@ -111,12 +111,14 @@ func (a *Applications) startSubscriptions() {
 			}
 		}(an, a)
 	}
-	as := ApplicationsStatus{Applications: make(map[string]ApplicationStatus)}
-	for au := range updates {
-		as.Applications[au.name] = au.s
-		as.recalculate()
-		go func(as ApplicationsStatus) { a.broker.notifier <- as }(as)
-	}
+	go func() {
+		as := ApplicationsStatus{Applications: make(map[string]ApplicationStatus)}
+		for au := range updates {
+			as.Applications[au.name] = au.s
+			as.recalculate()
+			go func(as ApplicationsStatus) { a.broker.notifier <- as }(as)
+		}
+	}()
 }
 
 func (as *ApplicationsStatus) recalculate() {

@@ -7,6 +7,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"mime"
 	"net/http"
+	"path"
 	"path/filepath"
 )
 
@@ -21,11 +22,24 @@ func NewDashboard(conf *updog.Config) *Dashboard {
 }
 
 func (d *Dashboard) Start() error {
-	log.Info("1 Starting dashboard listener...")
 	http.Handle("/", gziphandler.GzipHandler(http.HandlerFunc(d.rootHandler)))
-	http.Handle("/api/applications", jsonHandler(func() interface{} { return d.conf.Applications.GetStatus() }))
 	http.Handle("/api/config", jsonHandler(func() interface{} { return d.conf }))
 
+	http.Handle("/api/applications", jsonHandler(func() interface{} { return d.conf.Applications.GetStatus() }))
+	http.Handle("/api/application/", http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			jsonHandler(func() interface{} { return d.conf.Applications.Applications[path.Base(r.URL.Path)].GetStatus() })
+		}))
+
+	http.Handle("/api/app/emby", jsonHandler(func() interface{} {
+		return d.conf.Applications.Applications["emby"].GetStatus()
+	}))
+	http.Handle("/api/svc/emby", jsonHandler(func() interface{} {
+		return d.conf.Applications.Applications["emby"].Services["emby"].GetStatus()
+	}))
+	http.Handle("/api/inst/emby", jsonHandler(func() interface{} {
+		return d.conf.Applications.Applications["emby"].Services["emby"].Instances[0].GetStatus()
+	}))
 	log.Info("Starting dashboard listener...")
 	return http.ListenAndServe(":8080", nil)
 }

@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	//"time"
 
 	"github.com/TrilliumIT/updog/dashboard"
 	//"github.com/TrilliumIT/updog/opentsdb"
@@ -54,7 +55,7 @@ func main() {
 		for sn, service := range app.Services {
 			l.WithField("service", sn).Info("Starting checks")
 			//sTSDBClient := aTSDBClient.NewClient(map[string]string{"service": sn})
-			go service.StartChecks()
+			service.StartChecks()
 		}
 	}
 

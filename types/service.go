@@ -116,24 +116,26 @@ func (s *Service) StartChecks() {
 				}
 			}
 		}
-		go func(co *CheckOptions, i *Instance) {
-			i.StartChecks(co)
+		i.StartChecks(s.CheckOptions)
+		go func(i *Instance) {
 			iSub := i.Subscribe()
 			defer iSub.Close()
 			for is := range iSub.C {
 				updates <- &instanceStatusUpdate{s: is, name: i.address}
 			}
-		}(s.CheckOptions, i)
+		}(i)
 	}
 
-	ss := ServiceStatus{MaxFailures: s.MaxFailures, Instances: make(map[string]InstanceStatus)}
-	for isu := range updates {
-		l := log.WithField("name", isu.name).WithField("status", isu.s)
-		l.Debug("Recieved status update")
-		ss.Instances[isu.name] = isu.s
-		ss.recalculate()
-		go func(ss ServiceStatus) { s.broker.notifier <- ss }(ss)
-	}
+	go func() {
+		ss := ServiceStatus{MaxFailures: s.MaxFailures, Instances: make(map[string]InstanceStatus)}
+		for isu := range updates {
+			l := log.WithField("name", isu.name).WithField("status", isu.s)
+			l.Debug("Recieved status update")
+			ss.Instances[isu.name] = isu.s
+			ss.recalculate()
+			go func(ss ServiceStatus) { s.broker.notifier <- ss }(ss)
+		}
+	}()
 }
 
 func (ss *ServiceStatus) recalculate() {

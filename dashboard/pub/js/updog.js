@@ -2,9 +2,20 @@
 window.setInterval(updateTimestamps, 1000);
 
 var jsonStream = new EventSource('/api/streaming/applications/')
-jsonStream.onmessage = function (e) {
+jsonStream.onmessage = processMessage
+jsonStream.onerror = retryJsonStream
+
+function retryJsonStream(e) {
+	window.setTimeout(function() {
+		jsonStream = new EventSource('/api/streaming/applications/')
+		jsonStream.onmessage = processMessage
+		jsonStream.onerror = retryJsonStream
+	}, 1000)
+}
+
+function processMessage(e) {
 	var data = JSON.parse(e.data);
-	//console.log(data);
+	console.log(data);
 	$.each(data.applications, function(an, app) {
 		if ($('#app_'+an).length == 0) {
 			$('#content').append('<div class="application" id="app_'+an+'"><div class="title">'+an+'</div></div>');
@@ -75,26 +86,24 @@ jsonStream.onmessage = function (e) {
 				}
 				$('#serv_'+an+'_'+sn+' .nup').text(serv.instances_up+"/"+(serv.instances_total)+" up");
 			});
-		});
+	});
 
-		updateTimestamps();
+	updateTimestamps();
 
-		if(data.failed) {
-			$('.header').addClass("failed").removeClass('degraded').removeClass('up');
-		} else if(data.degraded) {
-			$('.header').addClass("degraded").removeClass('failed').removeClass('up');
-		} else {
-			$('.header').addClass("up").removeClass('failed').removeClass('degraded');
-		}
+	if(data.failed) {
+		$('.header').addClass("failed").removeClass('degraded').removeClass('up');
+	} else if(data.degraded) {
+		$('.header').addClass("degraded").removeClass('failed').removeClass('up');
+	} else {
+		$('.header').addClass("up").removeClass('failed').removeClass('degraded');
+	}
 
-		$('.aup').text(data.applications_up+'/'+data.applications_total+' apps');
-		$('.sup').text(data.services_up+'/'+data.services_total+' services');
-		$('.iup').text(data.instances_up+'/'+data.instances_total+' instances');
+	$('.aup').text(data.applications_up+'/'+data.applications_total+' apps');
+	$('.sup').text(data.services_up+'/'+data.services_total+' services');
+	$('.iup').text(data.instances_up+'/'+data.instances_total+' instances');
 }
 
 $(function() {
-	//updateApplications();
-
 	$('.content').on("click", '.service', function(event) {
 		$(event.target).children('div.inst_table').slideToggle();
 	});
@@ -102,7 +111,6 @@ $(function() {
 	$('.content').on("click", '.serv_sum', function(event) {
 		$(event.target).parent().trigger("click");
 	});
-
 });
 
 function toMsFormatted(number) {

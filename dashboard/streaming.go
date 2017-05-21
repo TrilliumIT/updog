@@ -101,11 +101,13 @@ func streamJson(subr updog.Subscriber, full, ws bool, w http.ResponseWriter, r *
 		w.Header().Set("Connection", "keep-alive")
 		process = func(d interface{}) error {
 			l := log.WithField("data", d)
+			w.Write([]byte("data: "))
 			if err := json.NewEncoder(w).Encode(d); err != nil {
 				l.WithError(err).Error("Error encoding json")
 				http.Error(w, "Failed to encode json", 500)
 				return err
 			}
+			w.Write([]byte("\n\n"))
 			flusher.Flush()
 			return nil
 		}

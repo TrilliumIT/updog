@@ -22,6 +22,10 @@ type Instance struct {
 	brokerLock sync.Mutex
 }
 
+func (i *Instance) Address() string {
+	return i.address
+}
+
 func (i *Instance) UnmarshalJSON(data []byte) (err error) {
 	return json.Unmarshal(data, &i.address)
 }

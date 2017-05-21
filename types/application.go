@@ -74,7 +74,7 @@ func newApplicationBroker() *applicationBroker {
 		fullClients:    make(map[chan ApplicationStatus]struct{}),
 	}
 	go func() {
-		as := ApplicationStatus{Services: make(map[string]ServiceStatus)}
+		var as ApplicationStatus
 		for {
 			select {
 			case c := <-b.newClients:
@@ -164,6 +164,9 @@ func (as *ApplicationStatus) recalculate() {
 }
 
 func (as ApplicationStatus) updateServicesFrom(ias *ApplicationStatus) ApplicationStatus {
+	if as.Services == nil {
+		as.Services = make(map[string]ServiceStatus)
+	}
 	for isn, iss := range ias.Services {
 		as.Services[isn] = as.Services[isn].updateInstancesFrom(&iss)
 	}

@@ -90,7 +90,7 @@ func newApplicationsBroker() *applicationsBroker {
 		fullClients:    make(map[chan ApplicationsStatus]struct{}),
 	}
 	go func() {
-		as := ApplicationsStatus{Applications: make(map[string]ApplicationStatus)}
+		var as ApplicationsStatus
 		for {
 			select {
 			case c := <-b.newClients:
@@ -187,6 +187,9 @@ func (as *ApplicationsStatus) recalculate() {
 }
 
 func (as ApplicationsStatus) updateApplicationsFrom(ias *ApplicationsStatus) ApplicationsStatus {
+	if as.Applications == nil {
+		as.Applications = make(map[string]ApplicationStatus)
+	}
 	for iian, iias := range ias.Applications {
 		as.Applications[iian] = as.Applications[iian].updateServicesFrom(&iias)
 	}

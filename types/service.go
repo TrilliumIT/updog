@@ -170,11 +170,11 @@ func (s *Service) StartChecks() {
 
 	go func() {
 		for isu := range updates {
-			ss := ServiceStatus{Instances: make(map[string]InstanceStatus), MaxFailures: s.MaxFailures}
+			iss := ServiceStatus{Instances: make(map[string]InstanceStatus), MaxFailures: s.MaxFailures}
 			l := log.WithField("name", isu.name).WithField("status", isu.s)
 			l.Debug("Recieved status update")
-			ss.Instances[isu.name] = isu.s
-			go func(ss ServiceStatus) { s.broker.notifier <- ss }(ss)
+			iss.Instances[isu.name] = isu.s
+			go func(iss ServiceStatus) { s.broker.notifier <- iss }(iss)
 		}
 	}()
 }
@@ -205,6 +205,9 @@ func (ss *ServiceStatus) recalculate() {
 
 func (ss ServiceStatus) updateInstancesFrom(iss *ServiceStatus) ServiceStatus {
 	ss.MaxFailures = iss.MaxFailures
+	if ss.Instances == nil {
+		ss.Instances = make(map[string]InstanceStatus)
+	}
 	for in, i := range iss.Instances {
 		ss.Instances[in] = i
 	}

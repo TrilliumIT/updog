@@ -15,7 +15,7 @@ function retryJsonStream(e) {
 
 function processMessage(e) {
 	var data = JSON.parse(e.data);
-	console.log(data);
+	//console.log(data);
 	$.each(data.applications, function(an, app) {
 		if ($('#app_'+an).length == 0) {
 			$('#content').append('<div class="application" id="app_'+an+'"><div class="title">'+an+'</div></div>');

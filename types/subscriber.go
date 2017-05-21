@@ -1,7 +1,7 @@
 package types
 
 type Subscriber interface {
-	Sub() Subscription
+	Sub(bool) Subscription
 }
 
 type Subscription interface {

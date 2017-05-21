@@ -22,7 +22,7 @@ type Service struct {
 }
 
 func (s *Service) GetStatus() ServiceStatus {
-	sub := s.Subscribe()
+	sub := s.Subscribe(true)
 	defer sub.Close()
 	return <-sub.C
 }
@@ -32,7 +32,7 @@ type ServiceSubscription struct {
 	close chan chan ServiceStatus
 }
 
-func (s *Service) Subscribe() *ServiceSubscription {
+func (s *Service) Subscribe(full bool) *ServiceSubscription {
 	if s.broker == nil {
 		s.brokerLock.Lock()
 		if s.broker == nil {
@@ -41,12 +41,16 @@ func (s *Service) Subscribe() *ServiceSubscription {
 		s.brokerLock.Unlock()
 	}
 	r := &ServiceSubscription{C: make(chan ServiceStatus), close: s.broker.closingClients}
-	s.broker.newClients <- r.C
+	if full {
+		s.broker.newFullClients <- r.C
+	} else {
+		s.broker.newClients <- r.C
+	}
 	return r
 }
 
-func (s *Service) Sub() Subscription {
-	return s.Subscribe()
+func (s *Service) Sub(full bool) Subscription {
+	return s.Subscribe(full)
 }
 
 func (s *ServiceSubscription) Close() {
@@ -71,16 +75,20 @@ type ServiceStatus struct {
 type serviceBroker struct {
 	notifier       chan ServiceStatus
 	newClients     chan chan ServiceStatus
+	newFullClients chan chan ServiceStatus
 	closingClients chan chan ServiceStatus
 	clients        map[chan ServiceStatus]struct{}
+	fullClients    map[chan ServiceStatus]struct{}
 }
 
 func newServiceBroker() *serviceBroker {
 	b := &serviceBroker{
 		notifier:       make(chan ServiceStatus),
 		newClients:     make(chan chan ServiceStatus),
+		newFullClients: make(chan chan ServiceStatus),
 		closingClients: make(chan chan ServiceStatus),
 		clients:        make(map[chan ServiceStatus]struct{}),
+		fullClients:    make(map[chan ServiceStatus]struct{}),
 	}
 	go func() {
 		var ss ServiceStatus
@@ -91,13 +99,26 @@ func newServiceBroker() *serviceBroker {
 				go func(c chan ServiceStatus, ss ServiceStatus) {
 					c <- ss
 				}(c, ss)
+			case c := <-b.newFullClients:
+				b.fullClients[c] = struct{}{}
+				go func(c chan ServiceStatus, ss ServiceStatus) {
+					c <- ss
+				}(c, ss)
 			case c := <-b.closingClients:
 				delete(b.clients, c)
-			case ss = <-b.notifier:
-				for c := range b.clients {
+				delete(b.fullClients, c)
+			case iss := <-b.notifier:
+				ss = ss.updateInstancesFrom(&iss)
+				iss = iss.copySummaryFrom(&ss)
+				for c := range b.fullClients {
 					go func(c chan ServiceStatus, ss ServiceStatus) {
 						c <- ss
 					}(c, ss)
+				}
+				for c := range b.clients {
+					go func(c chan ServiceStatus, ss ServiceStatus) {
+						c <- iss
+					}(c, iss)
 				}
 			}
 		}
@@ -148,12 +169,11 @@ func (s *Service) StartChecks() {
 	}
 
 	go func() {
-		ss := ServiceStatus{MaxFailures: s.MaxFailures, Instances: make(map[string]InstanceStatus)}
 		for isu := range updates {
+			ss := ServiceStatus{Instances: make(map[string]InstanceStatus), MaxFailures: s.MaxFailures}
 			l := log.WithField("name", isu.name).WithField("status", isu.s)
 			l.Debug("Recieved status update")
 			ss.Instances[isu.name] = isu.s
-			ss.recalculate()
 			go func(ss ServiceStatus) { s.broker.notifier <- ss }(ss)
 		}
 	}()
@@ -181,4 +201,23 @@ func (ss *ServiceStatus) recalculate() {
 	}
 	ss.Failed = ss.InstancesFailed > ss.MaxFailures
 	return
+}
+
+func (ss ServiceStatus) updateInstancesFrom(iss *ServiceStatus) ServiceStatus {
+	ss.MaxFailures = iss.MaxFailures
+	for in, i := range iss.Instances {
+		ss.Instances[in] = i
+	}
+	ss.recalculate()
+	return ss
+}
+
+func (iss ServiceStatus) copySummaryFrom(ss *ServiceStatus) ServiceStatus {
+	iss.InstancesTotal = ss.InstancesTotal
+	iss.InstancesFailed = ss.InstancesFailed
+	iss.InstancesUp = ss.InstancesUp
+	iss.AvgResponseTime = ss.AvgResponseTime
+	iss.Degraded = ss.Degraded
+	iss.Failed = ss.Failed
+	return iss
 }

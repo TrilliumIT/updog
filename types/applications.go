@@ -18,7 +18,7 @@ func (a Applications) MarshalJSON() ([]byte, error) {
 }
 
 func (a *Applications) GetStatus() ApplicationsStatus {
-	sub := a.Subscribe()
+	sub := a.Subscribe(true)
 	defer sub.Close()
 	return <-sub.C
 }
@@ -28,18 +28,22 @@ type ApplicationsSubscription struct {
 	close chan chan ApplicationsStatus
 }
 
-func (a *Applications) Subscribe() *ApplicationsSubscription {
+func (a *Applications) Subscribe(full bool) *ApplicationsSubscription {
 	if a.broker == nil {
 		a.broker = newApplicationsBroker()
 		a.startSubscriptions()
 	}
 	r := &ApplicationsSubscription{C: make(chan ApplicationsStatus), close: a.broker.closingClients}
-	a.broker.newClients <- r.C
+	if full {
+		a.broker.newFullClients <- r.C
+	} else {
+		a.broker.newClients <- r.C
+	}
 	return r
 }
 
-func (a *Applications) Sub() Subscription {
-	return a.Subscribe()
+func (a *Applications) Sub(full bool) Subscription {
+	return a.Subscribe(full)
 }
 
 func (a *ApplicationsSubscription) Close() {
@@ -70,19 +74,23 @@ type ApplicationsStatus struct {
 type applicationsBroker struct {
 	notifier       chan ApplicationsStatus
 	newClients     chan chan ApplicationsStatus
+	newFullClients chan chan ApplicationsStatus
 	closingClients chan chan ApplicationsStatus
 	clients        map[chan ApplicationsStatus]struct{}
+	fullClients    map[chan ApplicationsStatus]struct{}
 }
 
 func newApplicationsBroker() *applicationsBroker {
 	b := &applicationsBroker{
 		notifier:       make(chan ApplicationsStatus),
 		newClients:     make(chan chan ApplicationsStatus),
+		newFullClients: make(chan chan ApplicationsStatus),
 		closingClients: make(chan chan ApplicationsStatus),
 		clients:        make(map[chan ApplicationsStatus]struct{}),
+		fullClients:    make(map[chan ApplicationsStatus]struct{}),
 	}
 	go func() {
-		var as ApplicationsStatus
+		as := ApplicationsStatus{Applications: make(map[string]ApplicationStatus)}
 		for {
 			select {
 			case c := <-b.newClients:
@@ -90,10 +98,23 @@ func newApplicationsBroker() *applicationsBroker {
 				go func(c chan ApplicationsStatus, as ApplicationsStatus) {
 					c <- as
 				}(c, as)
+			case c := <-b.newFullClients:
+				b.fullClients[c] = struct{}{}
+				go func(c chan ApplicationsStatus, as ApplicationsStatus) {
+					c <- as
+				}(c, as)
 			case c := <-b.closingClients:
 				delete(b.clients, c)
-			case as = <-b.notifier:
+				delete(b.fullClients, c)
+			case ias := <-b.notifier:
+				as = as.updateApplicationsFrom(&ias)
+				ias = ias.copySummaryFrom(&as)
 				for c := range b.clients {
+					go func(c chan ApplicationsStatus, as ApplicationsStatus) {
+						c <- ias
+					}(c, ias)
+				}
+				for c := range b.fullClients {
 					go func(c chan ApplicationsStatus, as ApplicationsStatus) {
 						c <- as
 					}(c, as)
@@ -112,7 +133,7 @@ func (a *Applications) startSubscriptions() {
 	updates := make(chan *applicationStatusUpdate)
 	for an, a := range a.Applications {
 		go func(an string, a *Application) {
-			sub := a.Subscribe()
+			sub := a.Subscribe(false)
 			defer sub.Close()
 			for as := range sub.C {
 				updates <- &applicationStatusUpdate{name: an, s: as}
@@ -120,11 +141,10 @@ func (a *Applications) startSubscriptions() {
 		}(an, a)
 	}
 	go func() {
-		as := ApplicationsStatus{Applications: make(map[string]ApplicationStatus)}
 		for au := range updates {
-			as.Applications[au.name] = au.s
-			as.recalculate()
-			go func(as ApplicationsStatus) { a.broker.notifier <- as }(as)
+			ias := ApplicationsStatus{Applications: make(map[string]ApplicationStatus)}
+			ias.Applications[au.name] = au.s
+			go func(as ApplicationsStatus) { a.broker.notifier <- as }(ias)
 		}
 	}()
 }
@@ -164,4 +184,29 @@ func (as *ApplicationsStatus) recalculate() {
 		as.InstancesUp += a.InstancesUp
 		as.InstancesFailed += a.InstancesFailed
 	}
+}
+
+func (as ApplicationsStatus) updateApplicationsFrom(ias *ApplicationsStatus) ApplicationsStatus {
+	for iian, iias := range ias.Applications {
+		as.Applications[iian] = as.Applications[iian].updateServicesFrom(&iias)
+	}
+	as.recalculate()
+	return as
+}
+
+func (ias ApplicationsStatus) copySummaryFrom(as *ApplicationsStatus) ApplicationsStatus {
+	ias.Degraded = as.Degraded
+	ias.Failed = as.Failed
+	ias.ApplicationsTotal = as.ApplicationsTotal
+	ias.ApplicationsUp = as.ApplicationsUp
+	ias.ApplicationsDegraded = as.ApplicationsDegraded
+	ias.ApplicationsFailed = as.ApplicationsFailed
+	ias.ServicesTotal = as.ServicesTotal
+	ias.ServicesUp = as.ServicesUp
+	ias.ServicesDegraded = as.ServicesDegraded
+	ias.ServicesFailed = as.ServicesFailed
+	ias.InstancesTotal = as.InstancesTotal
+	ias.InstancesUp = as.InstancesUp
+	ias.InstancesFailed = as.InstancesFailed
+	return ias
 }

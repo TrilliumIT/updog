@@ -2,7 +2,7 @@ window.setInterval(updateApplications, 5000);
 window.setInterval(updateTimestamps, 1000);
 
 function updateApplications() {
-	var api = '/api/applications'
+	var api = '/api/status/applications/'
 	var apiParam = new RegExp('[\?&]api=([^&#]*)').exec(window.location.href)
 	if (apiParam != null && apiParam[1]) {
 		api = apiParam[1]

@@ -29,12 +29,10 @@ func (d *Dashboard) Start() error {
 func (d *Dashboard) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p := strings.Trim(r.URL.Path, "/")
 	switch {
-	case p == "":
-		gziphandler.GzipHandler(http.HandlerFunc(d.rootHandler)).ServeHTTP(w, r)
 	case strings.HasPrefix(p, "api/"):
 		gziphandler.GzipHandler(http.HandlerFunc(d.apiHandler)).ServeHTTP(w, r)
 	default:
-		http.NotFound(w, r)
+		gziphandler.GzipHandler(http.HandlerFunc(d.rootHandler)).ServeHTTP(w, r)
 	}
 }
 

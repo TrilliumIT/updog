@@ -2,8 +2,8 @@ package dashboard
 
 import (
 	"encoding/json"
+	"github.com/TrilliumIT/gziphandler"
 	updog "github.com/TrilliumIT/updog/types"
-	"github.com/nytimes/gziphandler"
 	log "github.com/sirupsen/logrus"
 	"mime"
 	"net/http"

@@ -96,7 +96,7 @@ func streamJson(subr updog.Subscriber, full, ws bool, w http.ResponseWriter, r *
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/x-json-stream")
+		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Connection", "keep-alive")
 		process = func(d interface{}) error {

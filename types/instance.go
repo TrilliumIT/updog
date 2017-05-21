@@ -59,7 +59,7 @@ func (i *Instance) Subscribe() *InstanceSubscription {
 	return r
 }
 
-func (i *Instance) Sub() Subscription {
+func (i *Instance) Sub(full bool) Subscription {
 	return i.Subscribe()
 }
 

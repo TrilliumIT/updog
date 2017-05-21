@@ -38,8 +38,16 @@ func (a *Applications) Subscribe() *ApplicationsSubscription {
 	return r
 }
 
+func (a *Applications) Sub() Subscription {
+	return a.Subscribe()
+}
+
 func (a *ApplicationsSubscription) Close() {
 	a.close <- a.C
+}
+
+func (a *ApplicationsSubscription) Next() interface{} {
+	return <-a.C
 }
 
 type ApplicationsStatus struct {

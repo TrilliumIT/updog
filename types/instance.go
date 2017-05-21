@@ -59,8 +59,16 @@ func (i *Instance) Subscribe() *InstanceSubscription {
 	return r
 }
 
+func (i *Instance) Sub() Subscription {
+	return i.Subscribe()
+}
+
 func (s *InstanceSubscription) Close() {
 	s.close <- s.C
+}
+
+func (s *InstanceSubscription) Next() interface{} {
+	return <-s.C
 }
 
 type InstanceStatus struct {

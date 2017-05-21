@@ -45,8 +45,16 @@ func (s *Service) Subscribe() *ServiceSubscription {
 	return r
 }
 
+func (s *Service) Sub() Subscription {
+	return s.Subscribe()
+}
+
 func (s *ServiceSubscription) Close() {
 	s.close <- s.C
+}
+
+func (s *ServiceSubscription) Next() interface{} {
+	return <-s.C
 }
 
 type ServiceStatus struct {

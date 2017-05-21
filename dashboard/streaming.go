@@ -2,44 +2,45 @@ package dashboard
 
 import (
 	"encoding/json"
+	updog "github.com/TrilliumIT/updog/types"
 	log "github.com/sirupsen/logrus"
 	"net/http"
+	"strings"
 )
 
-type streamer struct {
-	notifier       chan *interface{}
-	newClients     chan chan *interface{}
-	closingClients chan chan *interface{}
-	clients        map[chan *interface{}]struct{}
-}
-
-func newStreamer() *streamer {
-	s := &streamer{
-		notifier:       make(chan *interface{}),
-		newClients:     make(chan chan *interface{}),
-		closingClients: make(chan chan *interface{}),
-		clients:        make(map[chan *interface{}]struct{}),
+func (d *Dashboard) streamingHandler(w http.ResponseWriter, r *http.Request) {
+	parts := strings.SplitN(strings.Trim(r.URL.Path, "/"), "/", 6)
+	if len(parts) < 3 {
+		parts = []string{"api", "streaming", "applications"}
 	}
-	go func() {
-		for {
-			select {
-			case c := <-s.newClients:
-				s.clients[c] = struct{}{}
-			case c := <-s.closingClients:
-				delete(s.clients, c)
-			case ss := <-s.notifier:
-				for c := range s.clients {
-					go func(c chan *interface{}, ss *interface{}) {
-						c <- ss
-					}(c, ss)
-				}
-			}
-		}
-	}()
-	return s
+	switch parts[2] {
+	case "applications":
+		streamJson(d.conf.Applications, w)
+	case "application":
+		streamAppStatus(parts[3:], d.conf, w, r)
+	default:
+		http.NotFound(w, r)
+	}
 }
 
-func (broker *streamer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func streamAppStatus(parts []string, conf *updog.Config, w http.ResponseWriter, r *http.Request) {
+	log.WithField("lenparts", len(parts)).WithField("parts", parts).Debug("appstatus")
+	app, svc, inst, ok := fromParts(conf, parts)
+	switch {
+	case !ok:
+		http.NotFound(w, r)
+	case inst != nil:
+		streamJson(inst, w)
+	case svc != nil:
+		streamJson(svc, w)
+	case app != nil:
+		streamJson(app, w)
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+func streamJson(subr updog.Subscriber, w http.ResponseWriter) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
@@ -49,21 +50,28 @@ func (broker *streamer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	messageChan := make(chan *interface{})
-	broker.newClients <- messageChan
+	sub := subr.Sub()
 
 	notify := w.(http.CloseNotifier).CloseNotify()
 	go func() {
 		<-notify
-		broker.closingClients <- messageChan
-		close(messageChan)
+		sub.Close()
 	}()
 
-	for ss := range messageChan {
-		if err := json.NewEncoder(w).Encode(ss); err != nil {
-			log.WithError(err).WithField("ss", ss).Error("Error encoding json")
+	for {
+		d := sub.Next()
+		select {
+		case <-notify:
+			return
+		default:
+		}
+		l := log.WithField("data", d)
+		l.Debug("Sending streaming update")
+
+		if err := json.NewEncoder(w).Encode(d); err != nil {
+			l.WithError(err).Error("Error encoding json")
 			http.Error(w, "Failed to encode json", 500)
-			continue
+			return
 		}
 		flusher.Flush()
 	}

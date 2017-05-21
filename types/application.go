@@ -1,5 +1,7 @@
 package types
 
+import "time"
+
 type Application struct {
 	Services map[string]*Service `json:"services"`
 	broker   *applicationBroker
@@ -53,6 +55,7 @@ type ApplicationStatus struct {
 	InstancesTotal   int                      `json:"instances_total"`
 	InstancesUp      int                      `json:"instances_up"`
 	InstancesFailed  int                      `json:"instances_failed"`
+	TimeStamp        time.Time                `json:"timestamp"`
 }
 
 type applicationBroker struct {
@@ -126,8 +129,10 @@ func (a *Application) startSubscriptions() {
 	}
 	go func() {
 		for su := range updates {
-			as := ApplicationStatus{Services: make(map[string]ServiceStatus)}
-			as.Services[su.name] = su.s
+			as := ApplicationStatus{
+				Services:  map[string]ServiceStatus{su.name: su.s},
+				TimeStamp: su.s.TimeStamp,
+			}
 			go func(as ApplicationStatus) { a.broker.notifier <- as }(as)
 		}
 	}()
@@ -164,6 +169,7 @@ func (as *ApplicationStatus) recalculate() {
 }
 
 func (as ApplicationStatus) updateServicesFrom(ias *ApplicationStatus) ApplicationStatus {
+	as.TimeStamp = ias.TimeStamp
 	if as.Services == nil {
 		as.Services = make(map[string]ServiceStatus)
 	}

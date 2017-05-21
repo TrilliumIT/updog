@@ -70,6 +70,7 @@ type ServiceStatus struct {
 	InstancesTotal  int                       `json:"instances_total"`
 	InstancesUp     int                       `json:"instances_up"`
 	InstancesFailed int                       `json:"instances_failed"`
+	TimeStamp       time.Time                 `json:"timestamp"`
 }
 
 type serviceBroker struct {
@@ -170,10 +171,13 @@ func (s *Service) StartChecks() {
 
 	go func() {
 		for isu := range updates {
-			iss := ServiceStatus{Instances: make(map[string]InstanceStatus), MaxFailures: s.MaxFailures}
 			l := log.WithField("name", isu.name).WithField("status", isu.s)
 			l.Debug("Recieved status update")
-			iss.Instances[isu.name] = isu.s
+			iss := ServiceStatus{
+				Instances:   map[string]InstanceStatus{isu.name: isu.s},
+				MaxFailures: s.MaxFailures,
+				TimeStamp:   isu.s.TimeStamp,
+			}
 			go func(iss ServiceStatus) { s.broker.notifier <- iss }(iss)
 		}
 	}()
@@ -205,6 +209,7 @@ func (ss *ServiceStatus) recalculate() {
 
 func (ss ServiceStatus) updateInstancesFrom(iss *ServiceStatus) ServiceStatus {
 	ss.MaxFailures = iss.MaxFailures
+	ss.TimeStamp = iss.TimeStamp
 	if ss.Instances == nil {
 		ss.Instances = make(map[string]InstanceStatus)
 	}

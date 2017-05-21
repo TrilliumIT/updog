@@ -2,6 +2,7 @@ package types
 
 import (
 	"encoding/json"
+	"time"
 )
 
 type Applications struct {
@@ -69,6 +70,7 @@ type ApplicationsStatus struct {
 	InstancesTotal       int                          `json:"instances_total"`
 	InstancesUp          int                          `json:"instances_up"`
 	InstancesFailed      int                          `json:"instances_failed"`
+	TimeStamp            time.Time                    `json:"timestamp"`
 }
 
 type applicationsBroker struct {
@@ -142,8 +144,10 @@ func (a *Applications) startSubscriptions() {
 	}
 	go func() {
 		for au := range updates {
-			ias := ApplicationsStatus{Applications: make(map[string]ApplicationStatus)}
-			ias.Applications[au.name] = au.s
+			ias := ApplicationsStatus{
+				Applications: map[string]ApplicationStatus{au.name: au.s},
+				TimeStamp:    au.s.TimeStamp,
+			}
 			go func(as ApplicationsStatus) { a.broker.notifier <- as }(ias)
 		}
 	}()
@@ -187,6 +191,7 @@ func (as *ApplicationsStatus) recalculate() {
 }
 
 func (as ApplicationsStatus) updateApplicationsFrom(ias *ApplicationsStatus) ApplicationsStatus {
+	as.TimeStamp = ias.TimeStamp
 	if as.Applications == nil {
 		as.Applications = make(map[string]ApplicationStatus)
 	}

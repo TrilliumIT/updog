@@ -48,7 +48,9 @@ func (d *Dashboard) apiHandler(w http.ResponseWriter, r *http.Request) {
 	case strings.HasPrefix(p, "api/status"):
 		d.statusHandler(w, r)
 	case strings.HasPrefix(p, "api/streaming"):
-		d.streamingHandler(w, r)
+		d.streamingPolHandler(w, r)
+	case strings.HasPrefix(p, "api/ws"):
+		d.streamingWSHandler(w, r)
 	default:
 		http.NotFound(w, r)
 	}

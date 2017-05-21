@@ -1,5 +1,5 @@
-hash: 523bb89e761b2d38f7d79ac015993344246aad6e936ad413c2bcb97fbf7f45d5
-updated: 2017-05-18T14:24:37.943660387-04:00
+hash: 31a96a5741d449cd206aeac714ea3e68ed337851b0f3803bef1af4f25c0ef340
+updated: 2017-05-21T10:33:22.13983156-04:00
 imports:
 - name: bosun.org
   version: 879669a0c9ad177aa1aa439edf3b448523b982ce
@@ -16,6 +16,8 @@ imports:
   - redis
 - name: github.com/ghodss/yaml
   version: 0ca9ea5df5451ffdf184b4428c902747c2c11cd7
+- name: github.com/gorilla/websocket
+  version: 3ab3a8b8831546bd18fd182c20687ca853b2bb13
 - name: github.com/GROpenSourceDev/go-ntlm-auth
   version: 6314d66e1d8ffd12a8da4be59eb4467b60dde719
   subpackages:

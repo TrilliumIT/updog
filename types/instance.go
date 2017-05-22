@@ -59,7 +59,7 @@ func (i *Instance) Subscribe() *InstanceSubscription {
 	return r
 }
 
-func (i *Instance) Sub(full bool) Subscription {
+func (i *Instance) Sub(full bool, depth uint8, maxStale time.Duration) Subscription {
 	return i.Subscribe()
 }
 

@@ -4,25 +4,37 @@ import (
 	updog "github.com/TrilliumIT/updog/types"
 	log "github.com/sirupsen/logrus"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
 func (d *Dashboard) statusHandler(w http.ResponseWriter, r *http.Request) {
+	depth := uint64(255)
+	var err error
+	if r.URL.Query().Get("depth") != "" {
+		depth, err = strconv.ParseUint(r.URL.Query().Get("depth"), 10, 8)
+		if err != nil {
+			log.WithError(err).Error("Error parsing depth value")
+			http.Error(w, "Error parsing full", 400)
+			return
+		}
+	}
+
 	parts := strings.SplitN(strings.Trim(r.URL.Path, "/"), "/", 6)
 	if len(parts) < 3 {
 		parts = []string{"api", "status", "applications"}
 	}
 	switch parts[2] {
 	case "applications":
-		returnJson(d.conf.Applications.GetStatus(), w)
+		returnJson(d.conf.Applications.GetStatus(uint8(depth)), w)
 	case "application":
-		getAppStatus(parts[3:], d.conf, w, r)
+		getAppStatus(parts[3:], uint8(depth), d.conf, w, r)
 	default:
 		http.NotFound(w, r)
 	}
 }
 
-func getAppStatus(parts []string, conf *updog.Config, w http.ResponseWriter, r *http.Request) {
+func getAppStatus(parts []string, depth uint8, conf *updog.Config, w http.ResponseWriter, r *http.Request) {
 	log.WithField("lenparts", len(parts)).WithField("parts", parts).Debug("appstatus")
 	app, svc, inst, ok := fromParts(conf, parts)
 	switch {
@@ -31,9 +43,9 @@ func getAppStatus(parts []string, conf *updog.Config, w http.ResponseWriter, r *
 	case inst != nil:
 		returnJson(inst.GetStatus(), w)
 	case svc != nil:
-		returnJson(svc.GetStatus(), w)
+		returnJson(svc.GetStatus(depth), w)
 	case app != nil:
-		returnJson(app.GetStatus(), w)
+		returnJson(app.GetStatus(depth), w)
 	default:
 		http.NotFound(w, r)
 	}

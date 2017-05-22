@@ -22,18 +22,18 @@ type Service struct {
 }
 
 func (s *Service) GetStatus(depth uint8) ServiceStatus {
-	sub := s.Subscribe(true, depth)
+	sub := s.Subscribe(true, depth, 0)
 	defer sub.Close()
 	return <-sub.C
 }
 
 type ServiceSubscription struct {
+	baseSubscription
 	C     chan ServiceStatus
 	close chan chan ServiceStatus
-	opts  brokerOptions
 }
 
-func (s *Service) Subscribe(full bool, depth uint8) *ServiceSubscription {
+func (s *Service) Subscribe(full bool, depth uint8, maxStale time.Duration) *ServiceSubscription {
 	if s.broker == nil {
 		s.brokerLock.Lock()
 		if s.broker == nil {
@@ -41,13 +41,21 @@ func (s *Service) Subscribe(full bool, depth uint8) *ServiceSubscription {
 		}
 		s.brokerLock.Unlock()
 	}
-	r := &ServiceSubscription{C: make(chan ServiceStatus), close: s.broker.closingClients, opts: newBrokerOptions(full, depth).maxDepth(1)}
+	r := &ServiceSubscription{
+		C:     make(chan ServiceStatus),
+		close: s.broker.closingClients,
+		baseSubscription: baseSubscription{
+			opts:     newBrokerOptions(full, depth).maxDepth(1),
+			maxStale: maxStale,
+		},
+	}
+	r.setMaxStale()
 	s.broker.newClients <- r
 	return r
 }
 
-func (s *Service) Sub(full bool, depth uint8) Subscription {
-	return s.Subscribe(full, depth)
+func (s *Service) Sub(full bool, depth uint8, maxStale time.Duration) Subscription {
+	return s.Subscribe(full, depth, maxStale)
 }
 
 func (s *ServiceSubscription) Close() {
@@ -74,7 +82,7 @@ type serviceBroker struct {
 	notifier       chan ServiceStatus
 	newClients     chan *ServiceSubscription
 	closingClients chan chan ServiceStatus
-	clients        map[chan ServiceStatus]brokerOptions
+	clients        map[chan ServiceStatus]*ServiceSubscription
 }
 
 func newServiceBroker() *serviceBroker {
@@ -82,44 +90,50 @@ func newServiceBroker() *serviceBroker {
 		notifier:       make(chan ServiceStatus),
 		newClients:     make(chan *ServiceSubscription),
 		closingClients: make(chan chan ServiceStatus),
-		clients:        make(map[chan ServiceStatus]brokerOptions),
+		clients:        make(map[chan ServiceStatus]*ServiceSubscription),
 	}
 	go func() {
-		var ss [3]ServiceStatus
+		var ss [4]ServiceStatus
+		var updated [4]bool
 		f := newBrokerOptions(true, 1)
 		i := newBrokerOptions(false, 1)
-		var updated brokerOptions
 		for {
 			select {
 			case c := <-b.newClients:
-				b.clients[c.C] = c.opts
-				if updated&f == 0 {
+				b.clients[c.C] = c
+				if !updated[f] {
 					continue
 				}
-				if updated&c.opts == 0 {
+				if !updated[c.opts] {
 					ss[c.opts], _ = ss[c.opts].filter(c.opts, &ss[f])
+					updated[c.opts] = true
 				}
+				c.lastUpdate = ss[c.opts].TimeStamp
 				go func(c chan ServiceStatus, ss ServiceStatus) {
 					c <- ss
 				}(c.C, ss[c.opts])
 			case c := <-b.closingClients:
 				delete(b.clients, c)
 			case ss[i] = <-b.notifier:
+				var changed [4]bool
+				updated = [4]bool{}
 				ss[f] = ss[f].updateInstancesFrom(&ss[i])
+				updated[f] = true
+				changed[f] = true
 				ss[i], _ = ss[i].copySummaryFrom(&ss[f])
-				changed := brokerOptions(i | f)
-				updated = brokerOptions(i | f)
+				updated[i] = true
+				changed[i] = true
 				// TODO return based on broker options
 				for c, o := range b.clients {
-					if updated&o == 0 {
-						var och brokerOptions
-						ss[o], och = ss[o].filter(o, &ss[f])
-						changed = changed | och
+					if !updated[o.opts] {
+						ss[o.opts], changed[o.opts] = ss[o.opts].filter(o.opts, &ss[f])
+						updated[o.opts] = true
 					}
-					if changed&o == 1 {
+					if changed[o.opts] || ss[o.opts].TimeStamp.Sub(o.lastUpdate) >= o.maxStale {
+						o.lastUpdate = ss[o.opts].TimeStamp
 						go func(c chan ServiceStatus, ss ServiceStatus) {
 							c <- ss
-						}(c, ss[o])
+						}(c, ss[o.opts])
 					}
 				}
 			}
@@ -128,17 +142,14 @@ func newServiceBroker() *serviceBroker {
 	return b
 }
 
-func (ss ServiceStatus) filter(o brokerOptions, ssf *ServiceStatus) (ServiceStatus, brokerOptions) {
+func (ss ServiceStatus) filter(o brokerOptions, ssf *ServiceStatus) (ServiceStatus, bool) {
 	if o.depth() >= 1 {
-		return *ssf, o
+		return *ssf, true
 	}
 	var changed bool
 	ss, changed = ss.copySummaryFrom(ssf)
 	ss.Instances = map[string]InstanceStatus{}
-	if changed {
-		return ss, o
-	}
-	return ss, 0
+	return ss, changed
 }
 
 func (s *Service) StartChecks() {
@@ -235,8 +246,7 @@ func (ss ServiceStatus) updateInstancesFrom(iss *ServiceStatus) ServiceStatus {
 }
 
 func (iss ServiceStatus) copySummaryFrom(ss *ServiceStatus) (ServiceStatus, bool) {
-	c := ss.TimeStamp.Sub(iss.TimeStamp) <= maxUpdate &&
-		iss.InstancesTotal == ss.InstancesTotal &&
+	c := iss.InstancesTotal == ss.InstancesTotal &&
 		iss.InstancesFailed == ss.InstancesFailed &&
 		iss.InstancesUp == ss.InstancesUp &&
 		iss.AvgResponseTime == ss.AvgResponseTime &&

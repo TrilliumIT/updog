@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func (d *Dashboard) streamingWSHandler(w http.ResponseWriter, r *http.Request) {
@@ -19,12 +20,18 @@ func (d *Dashboard) streamingPolHandler(w http.ResponseWriter, r *http.Request) 
 }
 
 func (d *Dashboard) streamingHandler(w http.ResponseWriter, r *http.Request, ws bool) {
-	parts := strings.SplitN(strings.Trim(r.URL.Path, "/"), "/", 6)
-	if len(parts) < 3 {
-		parts = []string{"api", "streaming", "applications"}
-	}
-	full := false
+	depth := uint64(255)
 	var err error
+	if r.URL.Query().Get("depth") != "" {
+		depth, err = strconv.ParseUint(r.URL.Query().Get("depth"), 10, 8)
+		if err != nil {
+			log.WithError(err).Error("Error parsing depth value")
+			http.Error(w, "Error parsing full", 400)
+			return
+		}
+	}
+
+	full := false
 	if r.URL.Query().Get("full") != "" {
 		full, err = strconv.ParseBool(r.URL.Query().Get("full"))
 		if err != nil {
@@ -33,28 +40,44 @@ func (d *Dashboard) streamingHandler(w http.ResponseWriter, r *http.Request, ws 
 			return
 		}
 	}
+
+	refresh := time.Duration(0)
+	if r.URL.Query().Get("refresh") != "" {
+		refresh, err = time.ParseDuration(r.URL.Query().Get("refresh"))
+		if err != nil {
+			log.WithError(err).Error("Error parsing refresh value")
+			http.Error(w, "Error parsing full", 400)
+			return
+		}
+	}
+
+	parts := strings.SplitN(strings.Trim(r.URL.Path, "/"), "/", 6)
+	if len(parts) < 3 {
+		parts = []string{"api", "streaming", "applications"}
+	}
+
 	switch parts[2] {
 	case "applications":
-		streamJson(d.conf.Applications, full, ws, w, r)
+		streamJson(d.conf.Applications, full, uint8(depth), refresh, ws, w, r)
 	case "application":
-		streamAppStatus(parts[3:], d.conf, full, ws, w, r)
+		streamAppStatus(parts[3:], d.conf, full, uint8(depth), refresh, ws, w, r)
 	default:
 		http.NotFound(w, r)
 	}
 }
 
-func streamAppStatus(parts []string, conf *updog.Config, full, ws bool, w http.ResponseWriter, r *http.Request) {
+func streamAppStatus(parts []string, conf *updog.Config, full bool, depth uint8, maxStale time.Duration, ws bool, w http.ResponseWriter, r *http.Request) {
 	log.WithField("lenparts", len(parts)).WithField("parts", parts).Debug("appstatus")
 	app, svc, inst, ok := fromParts(conf, parts)
 	switch {
 	case !ok:
 		http.NotFound(w, r)
 	case inst != nil:
-		streamJson(inst, full, ws, w, r)
+		streamJson(inst, full, depth, maxStale, ws, w, r)
 	case svc != nil:
-		streamJson(svc, full, ws, w, r)
+		streamJson(svc, full, depth, maxStale, ws, w, r)
 	case app != nil:
-		streamJson(app, full, ws, w, r)
+		streamJson(app, full, depth, maxStale, ws, w, r)
 	default:
 		http.NotFound(w, r)
 	}
@@ -65,7 +88,7 @@ var wsUpgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
-func streamJson(subr updog.Subscriber, full, ws bool, w http.ResponseWriter, r *http.Request) {
+func streamJson(subr updog.Subscriber, full bool, depth uint8, maxStale time.Duration, ws bool, w http.ResponseWriter, r *http.Request) {
 	var process func(interface{}) error
 
 	if ws {
@@ -113,7 +136,7 @@ func streamJson(subr updog.Subscriber, full, ws bool, w http.ResponseWriter, r *
 		}
 	}
 
-	sub := subr.Sub(full)
+	sub := subr.Sub(full, depth, maxStale)
 
 	notify := w.(http.CloseNotifier).CloseNotify()
 	go func() {

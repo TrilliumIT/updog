@@ -2,8 +2,6 @@ package types
 
 import "time"
 
-const maxUpdate = time.Duration(60 * time.Second)
-
 type brokerOptions uint8
 
 func newBrokerOptions(full bool, depth uint8) brokerOptions {
@@ -30,10 +28,24 @@ func (b brokerOptions) full() bool {
 }
 
 type Subscriber interface {
-	Sub(bool, uint8) Subscription
+	Sub(bool, uint8, time.Duration) Subscription
 }
 
 type Subscription interface {
 	Next() interface{}
 	Close()
+}
+
+type baseSubscription struct {
+	opts       brokerOptions
+	maxStale   time.Duration
+	lastUpdate time.Time
+}
+
+func (s *baseSubscription) setMaxStale() {
+	if s.maxStale == 0 {
+		// You kept a subscription open for 10 years:
+		// you're getting an update, like it or not
+		s.maxStale = time.Duration(24 * time.Hour * 3652)
+	}
 }

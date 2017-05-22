@@ -21,32 +21,41 @@ func (a Applications) MarshalJSON() ([]byte, error) {
 }
 
 func (a *Applications) GetStatus(depth uint8) ApplicationsStatus {
-	sub := a.Subscribe(true, depth)
+	sub := a.Subscribe(true, depth, 0)
 	defer sub.Close()
 	return <-sub.C
 }
 
 type ApplicationsSubscription struct {
+	baseSubscription
 	C     chan ApplicationsStatus
 	close chan chan ApplicationsStatus
-	opts  brokerOptions
 }
 
-func (a *Applications) Subscribe(full bool, depth uint8) *ApplicationsSubscription {
+func (a *Applications) Subscribe(full bool, depth uint8, maxStale time.Duration) *ApplicationsSubscription {
 	if a.broker == nil {
 		a.brokerLock.Lock()
 		if a.broker == nil {
 			a.broker = newApplicationsBroker()
+			a.startSubscriptions()
 		}
 		a.brokerLock.Unlock()
 	}
-	r := &ApplicationsSubscription{C: make(chan ApplicationsStatus), close: a.broker.closingClients, opts: newBrokerOptions(full, depth).maxDepth(3)}
+	r := &ApplicationsSubscription{
+		C:     make(chan ApplicationsStatus),
+		close: a.broker.closingClients,
+		baseSubscription: baseSubscription{
+			opts:     newBrokerOptions(full, depth).maxDepth(3),
+			maxStale: maxStale,
+		},
+	}
+	r.setMaxStale()
 	a.broker.newClients <- r
 	return r
 }
 
-func (a *Applications) Sub(full bool, depth uint8) Subscription {
-	return a.Subscribe(full, depth)
+func (a *Applications) Sub(full bool, depth uint8, maxStale time.Duration) Subscription {
+	return a.Subscribe(full, depth, maxStale)
 }
 
 func (a *ApplicationsSubscription) Close() {
@@ -79,7 +88,7 @@ type applicationsBroker struct {
 	notifier       chan ApplicationsStatus
 	newClients     chan *ApplicationsSubscription
 	closingClients chan chan ApplicationsStatus
-	clients        map[chan ApplicationsStatus]brokerOptions
+	clients        map[chan ApplicationsStatus]*ApplicationsSubscription
 }
 
 func newApplicationsBroker() *applicationsBroker {
@@ -87,43 +96,49 @@ func newApplicationsBroker() *applicationsBroker {
 		notifier:       make(chan ApplicationsStatus),
 		newClients:     make(chan *ApplicationsSubscription),
 		closingClients: make(chan chan ApplicationsStatus),
-		clients:        make(map[chan ApplicationsStatus]brokerOptions),
+		clients:        make(map[chan ApplicationsStatus]*ApplicationsSubscription),
 	}
 	go func() {
-		var as [7]ApplicationsStatus
+		var as [8]ApplicationsStatus
+		var updated [8]bool
 		f := newBrokerOptions(true, 1)
 		i := newBrokerOptions(false, 1)
-		var updated brokerOptions
 		for {
 			select {
 			case c := <-b.newClients:
-				b.clients[c.C] = c.opts
-				if updated&f == 0 {
+				b.clients[c.C] = c
+				if !updated[f] {
 					continue
 				}
-				if updated&c.opts == 0 {
+				if !updated[c.opts] {
 					as[c.opts], _ = as[c.opts].filter(c.opts, &as[f])
+					updated[c.opts] = true
 				}
+				c.lastUpdate = as[c.opts].TimeStamp
 				go func(c chan ApplicationsStatus, as ApplicationsStatus) {
 					c <- as
 				}(c.C, as[c.opts])
 			case c := <-b.closingClients:
 				delete(b.clients, c)
 			case as[i] = <-b.notifier:
+				var changed [8]bool
+				updated = [8]bool{}
 				as[f] = as[f].updateApplicationsFrom(&as[i])
+				updated[f] = true
+				changed[f] = true
 				as[i], _ = as[i].copySummaryFrom(&as[f])
-				changed := brokerOptions(i | f)
-				updated = brokerOptions(i | f)
+				updated[i] = true
+				changed[i] = true
 				for c, o := range b.clients {
-					if updated&o == 0 {
-						var och brokerOptions
-						as[o], och = as[o].filter(o, &as[f])
-						changed = changed | och
+					if !updated[o.opts] {
+						updated[o.opts] = true
+						as[o.opts], changed[o.opts] = as[o.opts].filter(o.opts, &as[f])
 					}
-					if changed&o == 1 {
+					if changed[o.opts] || as[o.opts].TimeStamp.Sub(o.lastUpdate) >= o.maxStale {
+						o.lastUpdate = as[o.opts].TimeStamp
 						go func(c chan ApplicationsStatus, as ApplicationsStatus) {
 							c <- as
-						}(c, as[o])
+						}(c, as[o.opts])
 					}
 				}
 			}
@@ -132,17 +147,13 @@ func newApplicationsBroker() *applicationsBroker {
 	return b
 }
 
-func (as ApplicationsStatus) filter(o brokerOptions, asf *ApplicationsStatus) (ApplicationsStatus, brokerOptions) {
+func (as ApplicationsStatus) filter(o brokerOptions, asf *ApplicationsStatus) (ApplicationsStatus, bool) {
 	if o.depth() >= 3 {
-		return *asf, o
+		return *asf, true
 	}
 
 	var changed bool
 	as, changed = as.copySummaryFrom(asf)
-	var oc brokerOptions
-	if changed {
-		oc = o
-	}
 
 	if o.depth() == 2 {
 		for _, a := range as.Applications {
@@ -150,18 +161,18 @@ func (as ApplicationsStatus) filter(o brokerOptions, asf *ApplicationsStatus) (A
 				s.Instances = map[string]InstanceStatus{}
 			}
 		}
-		return as, o
+		return as, changed
 	}
 
 	if o.depth() == 1 {
 		for _, a := range as.Applications {
 			a.Services = map[string]ServiceStatus{}
 		}
-		return as, oc
+		return as, changed
 	}
 
 	as.Applications = map[string]ApplicationStatus{}
-	return as, o
+	return as, changed
 
 }
 
@@ -173,7 +184,7 @@ func (a *Applications) startSubscriptions() {
 	updates := make(chan *applicationStatusUpdate)
 	for an, a := range a.Applications {
 		go func(an string, a *Application) {
-			sub := a.Subscribe(false, 255)
+			sub := a.Subscribe(false, 255, 0)
 			defer sub.Close()
 			for as := range sub.C {
 				updates <- &applicationStatusUpdate{name: an, s: as}
@@ -241,8 +252,7 @@ func (as ApplicationsStatus) updateApplicationsFrom(ias *ApplicationsStatus) App
 }
 
 func (ias ApplicationsStatus) copySummaryFrom(as *ApplicationsStatus) (ApplicationsStatus, bool) {
-	c := as.TimeStamp.Sub(ias.TimeStamp) <= maxUpdate &&
-		ias.Degraded == as.Degraded &&
+	c := ias.Degraded == as.Degraded &&
 		ias.Failed == as.Failed &&
 		ias.ApplicationsTotal == as.ApplicationsTotal &&
 		ias.ApplicationsUp == as.ApplicationsUp &&

@@ -7,6 +7,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"mime"
 	"net/http"
+	_ "net/http/pprof"
 	"path/filepath"
 	"strings"
 )
@@ -23,6 +24,9 @@ func NewDashboard(conf *updog.Config) *Dashboard {
 
 func (d *Dashboard) Start() error {
 	log.Info("Starting dashboard listener...")
+	go func() {
+		http.ListenAndServe(":8081", nil)
+	}()
 	return http.ListenAndServe(":8080", d)
 }
 

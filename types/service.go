@@ -21,8 +21,8 @@ type Service struct {
 	brokerLock   sync.Mutex
 }
 
-func (s *Service) GetStatus() ServiceStatus {
-	sub := s.Subscribe(true, 1)
+func (s *Service) GetStatus(depth uint8) ServiceStatus {
+	sub := s.Subscribe(true, depth)
 	defer sub.Close()
 	return <-sub.C
 }
@@ -88,20 +88,27 @@ func newServiceBroker() *serviceBroker {
 		var ss [3]ServiceStatus
 		f := newBrokerOptions(true, 1)
 		i := newBrokerOptions(false, 1)
+		var updated brokerOptions
 		for {
 			select {
 			case c := <-b.newClients:
 				b.clients[c.C] = c.opts
+				if updated&f == 0 {
+					continue
+				}
+				if updated&c.opts == 0 {
+					ss[c.opts], _ = ss[c.opts].filter(c.opts, &ss[f])
+				}
 				go func(c chan ServiceStatus, ss ServiceStatus) {
 					c <- ss
-				}(c.C, ss[f])
+				}(c.C, ss[c.opts])
 			case c := <-b.closingClients:
 				delete(b.clients, c)
 			case ss[i] = <-b.notifier:
 				ss[f] = ss[f].updateInstancesFrom(&ss[i])
 				ss[i], _ = ss[i].copySummaryFrom(&ss[f])
 				changed := brokerOptions(i | f)
-				updated := brokerOptions(i | f)
+				updated = brokerOptions(i | f)
 				// TODO return based on broker options
 				for c, o := range b.clients {
 					if updated&o == 0 {
@@ -228,19 +235,24 @@ func (ss ServiceStatus) updateInstancesFrom(iss *ServiceStatus) ServiceStatus {
 }
 
 func (iss ServiceStatus) copySummaryFrom(ss *ServiceStatus) (ServiceStatus, bool) {
-	if iss.InstancesTotal != ss.InstancesTotal ||
-		iss.InstancesFailed != ss.InstancesFailed ||
-		iss.InstancesUp != ss.InstancesUp ||
-		iss.AvgResponseTime != ss.AvgResponseTime ||
-		iss.Degraded != ss.Degraded ||
-		iss.Failed != ss.Failed {
-		iss.InstancesTotal = ss.InstancesTotal
-		iss.InstancesFailed = ss.InstancesFailed
-		iss.InstancesUp = ss.InstancesUp
-		iss.AvgResponseTime = ss.AvgResponseTime
-		iss.Degraded = ss.Degraded
-		iss.Failed = ss.Failed
-		return iss, true
+	c := ss.TimeStamp.Sub(iss.TimeStamp) <= maxUpdate &&
+		iss.InstancesTotal == ss.InstancesTotal &&
+		iss.InstancesFailed == ss.InstancesFailed &&
+		iss.InstancesUp == ss.InstancesUp &&
+		iss.AvgResponseTime == ss.AvgResponseTime &&
+		iss.Degraded == ss.Degraded &&
+		iss.Failed == ss.Failed
+
+	iss.TimeStamp = ss.TimeStamp
+	if c {
+		return iss, false
 	}
-	return iss, false
+
+	iss.InstancesTotal = ss.InstancesTotal
+	iss.InstancesFailed = ss.InstancesFailed
+	iss.InstancesUp = ss.InstancesUp
+	iss.AvgResponseTime = ss.AvgResponseTime
+	iss.Degraded = ss.Degraded
+	iss.Failed = ss.Failed
+	return iss, true
 }

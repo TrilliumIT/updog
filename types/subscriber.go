@@ -1,5 +1,9 @@
 package types
 
+import "time"
+
+const maxUpdate = time.Duration(60 * time.Second)
+
 type brokerOptions uint8
 
 func newBrokerOptions(full bool, depth uint8) brokerOptions {
@@ -26,7 +30,7 @@ func (b brokerOptions) full() bool {
 }
 
 type Subscriber interface {
-	Sub(bool) Subscription
+	Sub(bool, uint8) Subscription
 }
 
 type Subscription interface {

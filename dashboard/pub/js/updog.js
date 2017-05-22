@@ -88,8 +88,6 @@ function processMessage(e) {
 			});
 	});
 
-	updateTimestamps();
-
 	if(data.failed) {
 		$('.header').addClass("failed").removeClass('degraded').removeClass('up');
 	} else if(data.degraded) {
@@ -118,8 +116,9 @@ function toMsFormatted(number) {
 }
 
 function updateTimestamps() {
+	var now = moment().unix()
 	$('time').each(function() {
-		$(this).text((moment().unix() - moment($(this).attr("title")).unix())+"s ago");
+		$(this).text((now - moment($(this).attr("title")).unix())+"s ago");
 	});
 }
 

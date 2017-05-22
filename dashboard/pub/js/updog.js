@@ -3,15 +3,6 @@ window.setInterval(updateTimestamps, 1000);
 
 var jsonStream = new EventSource('/api/streaming/applications/')
 jsonStream.onmessage = processMessage
-jsonStream.onerror = retryJsonStream
-
-function retryJsonStream(e) {
-	window.setTimeout(function() {
-		jsonStream = new EventSource('/api/streaming/applications/')
-		jsonStream.onmessage = processMessage
-		jsonStream.onerror = retryJsonStream
-	}, 1000)
-}
 
 function processMessage(e) {
 	var data = JSON.parse(e.data);
@@ -63,20 +54,21 @@ function processMessage(e) {
 			var tot_rt = 0
 
 			$.each(serv.instances, function(iname, inst) {
+				var id = jq('inst_'+iname);
 
-				if ($(jq('inst_'+iname)).length == 0) {
+				if ($(id).length == 0) {
 					$('#serv_'+an+'_'+sn+' table tbody').append('<tr class="instance" id="inst_'+iname+'"></tr>');
 				}
 				if (inst.up) {
-					$(jq('inst_'+iname)).removeClass("failed");
-					$(jq('inst_'+iname)).addClass("up");
+					$(id).removeClass("failed");
+					$(id).addClass("up");
 					tot_rt += inst.ResponseTime;
 				} else {
-					$(jq('inst_'+iname)).removeClass("up");
-					$(jq('inst_'+iname)).addClass("failed");
+					$(id).removeClass("up");
+					$(id).addClass("failed");
 				}
 
-				$(jq('inst_'+iname)).html('<td class="ind">'+iname+'</td><td class="rtd">'+toMsFormatted(inst.response_time)+'</td><td class="lcd"><time title="'+inst.timestamp+'" ></time></td>');
+				$(id).html('<td class="ind">'+iname+'</td><td class="rtd">'+toMsFormatted(inst.response_time)+'</td><td class="lcd"><time title="'+inst.timestamp+'" ></time></td>');
 			});
 
 				if (serv.instances_up > 0) {

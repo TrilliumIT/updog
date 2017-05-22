@@ -16,6 +16,7 @@ func (a *Application) GetStatus() ApplicationStatus {
 type ApplicationSubscription struct {
 	C     chan ApplicationStatus
 	close chan chan ApplicationStatus
+	opts  brokerOptions
 }
 
 func (a *Application) Subscribe(full bool) *ApplicationSubscription {
@@ -120,7 +121,7 @@ func (a *Application) startSubscriptions() {
 	updates := make(chan *serviceStatusUpdate)
 	for sn, s := range a.Services {
 		go func(sn string, s *Service) {
-			sub := s.Subscribe(false)
+			sub := s.Subscribe(false, 255)
 			defer sub.Close()
 			for ss := range sub.C {
 				updates <- &serviceStatusUpdate{name: sn, s: ss}

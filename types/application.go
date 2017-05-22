@@ -1,54 +1,251 @@
 package types
 
+import (
+	"sync"
+	"time"
+)
+
 type Application struct {
-	Services map[string]*Service `json:"services"`
-	Name     string
+	Services   map[string]*Service `json:"services"`
+	broker     *applicationBroker
+	brokerLock sync.Mutex
+}
+
+func (a *Application) GetStatus(depth uint8) ApplicationStatus {
+	sub := a.Subscribe(true, depth, 0)
+	defer sub.Close()
+	return <-sub.C
+}
+
+type ApplicationSubscription struct {
+	baseSubscription
+	C     chan ApplicationStatus
+	close chan chan ApplicationStatus
+}
+
+func (a *Application) Subscribe(full bool, depth uint8, maxStale time.Duration) *ApplicationSubscription {
+	if a.broker == nil {
+		a.brokerLock.Lock()
+		if a.broker == nil {
+			a.broker = newApplicationBroker()
+			a.startSubscriptions()
+		}
+		a.brokerLock.Unlock()
+	}
+	r := &ApplicationSubscription{
+		C:     make(chan ApplicationStatus),
+		close: a.broker.closingClients,
+		baseSubscription: baseSubscription{
+			opts:     newBrokerOptions(full, depth).maxDepth(2),
+			maxStale: maxStale,
+		},
+	}
+	r.setMaxStale()
+	a.broker.newClients <- r
+	return r
+}
+
+func (a *Application) Sub(full bool, depth uint8, maxStale time.Duration) Subscription {
+	return a.Subscribe(full, depth, maxStale)
+}
+
+func (a *ApplicationSubscription) Close() {
+	a.close <- a.C
+}
+
+func (a *ApplicationSubscription) Next() interface{} {
+	return <-a.C
 }
 
 type ApplicationStatus struct {
-	Services         map[string]*ServiceStatus `json:"services"`
-	Degraded         bool                      `json:"degraded"`
-	Failed           bool                      `json:"failed"`
-	ServicesTotal    int                       `json:"services_total"`
-	ServicesUp       int                       `json:"services_up"`
-	ServicesDegraded int                       `json:"services_degraded"`
-	ServicesFailed   int                       `json:"services_failed"`
-	InstancesTotal   int                       `json:"instances_total"`
-	InstancesUp      int                       `json:"instances_up"`
-	InstancesFailed  int                       `json:"instances_failed"`
+	Services         map[string]ServiceStatus `json:"services"`
+	Degraded         bool                     `json:"degraded"`
+	Failed           bool                     `json:"failed"`
+	ServicesTotal    int                      `json:"services_total"`
+	ServicesUp       int                      `json:"services_up"`
+	ServicesDegraded int                      `json:"services_degraded"`
+	ServicesFailed   int                      `json:"services_failed"`
+	InstancesTotal   int                      `json:"instances_total"`
+	InstancesUp      int                      `json:"instances_up"`
+	InstancesFailed  int                      `json:"instances_failed"`
+	TimeStamp        time.Time                `json:"timestamp"`
 }
 
-func (app *Application) GetStatus() *ApplicationStatus {
-	type statusUpdate struct {
-		sn     string
-		status *ServiceStatus
+type applicationBroker struct {
+	notifier       chan ApplicationStatus
+	newClients     chan *ApplicationSubscription
+	closingClients chan chan ApplicationStatus
+	clients        map[chan ApplicationStatus]*ApplicationSubscription
+}
+
+func newApplicationBroker() *applicationBroker {
+	b := &applicationBroker{
+		notifier:       make(chan ApplicationStatus),
+		newClients:     make(chan *ApplicationSubscription),
+		closingClients: make(chan chan ApplicationStatus),
+		clients:        make(map[chan ApplicationStatus]*ApplicationSubscription),
 	}
-	rc := make(chan statusUpdate)
-	defer close(rc)
-	for sn, s := range app.Services {
+	go func() {
+		var as [6]ApplicationStatus
+		f := newBrokerOptions(true, 1)
+		i := newBrokerOptions(false, 1)
+		var updated [6]bool
+		for {
+			select {
+			case c := <-b.newClients:
+				b.clients[c.C] = c
+				if !updated[f] {
+					continue
+				}
+				if !updated[c.opts] {
+					as[c.opts], _ = as[c.opts].filter(c.opts, &as[f])
+					updated[c.opts] = true
+				}
+				c.lastUpdate = as[c.opts].TimeStamp
+				go func(c chan ApplicationStatus, as ApplicationStatus) {
+					c <- as
+				}(c.C, as[c.opts])
+			case c := <-b.closingClients:
+				delete(b.clients, c)
+			case as[i] = <-b.notifier:
+				var changed [6]bool
+				updated = [6]bool{}
+				as[f] = as[f].updateServicesFrom(&as[i])
+				updated[f] = true
+				changed[f] = true
+				as[i], _ = as[i].copySummaryFrom(&as[f])
+				updated[i] = true
+				changed[i] = true
+				for c, o := range b.clients {
+					if !updated[o.opts] {
+						as[o.opts], changed[o.opts] = as[o.opts].filter(o.opts, &as[f])
+						updated[o.opts] = true
+					}
+					if changed[o.opts] || as[o.opts].TimeStamp.Sub(o.lastUpdate) >= o.maxStale {
+						o.lastUpdate = as[o.opts].TimeStamp
+						go func(c chan ApplicationStatus, as ApplicationStatus) {
+							c <- as
+						}(c, as[o.opts])
+					}
+				}
+			}
+		}
+	}()
+	return b
+}
+
+func (as ApplicationStatus) filter(o brokerOptions, asf *ApplicationStatus) (ApplicationStatus, bool) {
+	if o.depth() >= 2 {
+		return *asf, true
+	}
+
+	var changed bool
+	as, changed = as.copySummaryFrom(asf)
+
+	if o.depth() == 1 {
+		for _, s := range as.Services {
+			s.Instances = map[string]InstanceStatus{}
+		}
+		return as, changed
+	}
+
+	as.Services = map[string]ServiceStatus{}
+	return as, changed
+
+}
+
+func (a *Application) startSubscriptions() {
+	type serviceStatusUpdate struct {
+		name string
+		s    ServiceStatus
+	}
+	updates := make(chan *serviceStatusUpdate)
+	for sn, s := range a.Services {
 		go func(sn string, s *Service) {
-			rc <- statusUpdate{sn: sn, status: s.GetStatus()}
+			sub := s.Subscribe(false, 255, 0)
+			defer sub.Close()
+			for ss := range sub.C {
+				updates <- &serviceStatusUpdate{name: sn, s: ss}
+			}
 		}(sn, s)
 	}
-	r := &ApplicationStatus{Services: make(map[string]*ServiceStatus)}
-	for range app.Services {
-		s := <-rc
-		r.Services[s.sn] = s.status
-		r.ServicesTotal++
-		if !s.status.Failed && !s.status.Degraded {
-			r.ServicesUp++
+	go func() {
+		for su := range updates {
+			as := ApplicationStatus{
+				Services:  map[string]ServiceStatus{su.name: su.s},
+				TimeStamp: su.s.TimeStamp,
+			}
+			go func(as ApplicationStatus) { a.broker.notifier <- as }(as)
 		}
-		if s.status.Failed {
-			r.Failed = true
-			r.ServicesFailed++
+	}()
+}
+
+func (as *ApplicationStatus) recalculate() {
+	as.Degraded = false
+	as.Failed = false
+	as.ServicesTotal = 0
+	as.ServicesUp = 0
+	as.ServicesDegraded = 0
+	as.ServicesFailed = 0
+	as.InstancesTotal = 0
+	as.InstancesUp = 0
+	as.InstancesFailed = 0
+	for _, s := range as.Services {
+		as.ServicesTotal++
+		if !s.Failed && !s.Degraded {
+			as.ServicesUp++
 		}
-		if s.status.Degraded {
-			r.Degraded = true
-			r.ServicesDegraded++
+		if s.Failed {
+			as.Failed = true
+			as.ServicesFailed++
 		}
-		r.InstancesTotal += s.status.InstancesTotal
-		r.InstancesUp += s.status.InstancesUp
-		r.InstancesFailed += s.status.InstancesFailed
+		if s.Degraded {
+			as.Degraded = true
+			as.ServicesDegraded++
+		}
+		as.InstancesTotal += s.InstancesTotal
+		as.InstancesUp += s.InstancesUp
+		as.InstancesFailed += s.InstancesFailed
 	}
-	return r
+	return
+}
+
+func (as ApplicationStatus) updateServicesFrom(ias *ApplicationStatus) ApplicationStatus {
+	as.TimeStamp = ias.TimeStamp
+	if as.Services == nil {
+		as.Services = make(map[string]ServiceStatus)
+	}
+	for isn, iss := range ias.Services {
+		as.Services[isn] = as.Services[isn].updateInstancesFrom(&iss)
+	}
+	as.recalculate()
+	return as
+}
+
+func (ias ApplicationStatus) copySummaryFrom(as *ApplicationStatus) (ApplicationStatus, bool) {
+	c := ias.Degraded == as.Degraded &&
+		ias.Failed == as.Failed &&
+		ias.ServicesTotal == as.ServicesTotal &&
+		ias.ServicesUp == as.ServicesUp &&
+		ias.ServicesDegraded == as.ServicesDegraded &&
+		ias.ServicesFailed == as.ServicesFailed &&
+		ias.InstancesTotal == as.InstancesTotal &&
+		ias.InstancesUp == as.InstancesUp &&
+		ias.InstancesFailed == as.InstancesFailed
+
+	ias.TimeStamp = as.TimeStamp
+	if c {
+		return ias, false
+	}
+
+	ias.Degraded = as.Degraded
+	ias.Failed = as.Failed
+	ias.ServicesTotal = as.ServicesTotal
+	ias.ServicesUp = as.ServicesUp
+	ias.ServicesDegraded = as.ServicesDegraded
+	ias.ServicesFailed = as.ServicesFailed
+	ias.InstancesTotal = as.InstancesTotal
+	ias.InstancesUp = as.InstancesUp
+	ias.InstancesFailed = as.InstancesFailed
+	return ias, true
 }

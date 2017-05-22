@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	//"time"
 
 	"github.com/TrilliumIT/updog/dashboard"
 	"github.com/TrilliumIT/updog/opentsdb"
@@ -22,6 +23,7 @@ func main() {
 
 	var confPath = flag.String("config", "config.yaml", "path to configuration file")
 	var debug = flag.Bool("debug", false, "debug logging")
+	//var subscribe = flag.Bool("subscribe", false, "Subscribe to all events on stdout")
 	flag.Parse()
 
 	if *debug {
@@ -41,20 +43,20 @@ func main() {
 		log.WithError(err).Fatal("Failed to unmarshal yaml")
 	}
 
-	sourceHost := os.Getenv("OPENTSDB_SOURCE_HOST")
-	if sourceHost == "" {
-		sourceHost, _ = os.Hostname()
+	if conf.OpenTSDBAddress != "" {
+		sourceHost := os.Getenv("OPENTSDB_SOURCE_HOST")
+		if sourceHost == "" {
+			sourceHost, _ = os.Hostname()
+		}
+		tsdbClient := opentsdb.NewClient(conf.OpenTSDBAddress, map[string]string{"host": sourceHost})
+		tsdbClient.Subscribe(conf)
 	}
-	tsdbClient := opentsdb.NewClient(conf.OpenTSDBAddress, map[string]string{"host": sourceHost})
 
-	for an, app := range conf.Applications {
+	for an, app := range conf.Applications.Applications {
 		l := log.WithField("application", an)
-		aTSDBClient := tsdbClient.NewClient(map[string]string{"application": an})
-		app.Name = an
 		for sn, service := range app.Services {
 			l.WithField("service", sn).Info("Starting checks")
-			sTSDBClient := aTSDBClient.NewClient(map[string]string{"service": sn})
-			go service.StartChecks(sTSDBClient)
+			service.StartChecks()
 		}
 	}
 

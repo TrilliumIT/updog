@@ -1,13 +1,14 @@
 package types
 
 import (
-	"github.com/TrilliumIT/updog/opentsdb"
+	"encoding/json"
 	log "github.com/sirupsen/logrus"
 	"io"
 	"io/ioutil"
 	"math/rand"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -15,9 +16,59 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-type InstanceStatusUpdate struct {
-	address string
-	status  *InstanceStatus
+type Instance struct {
+	address    string
+	broker     *instanceBroker
+	brokerLock sync.Mutex
+}
+
+func (i *Instance) Address() string {
+	return i.address
+}
+
+func (i *Instance) UnmarshalJSON(data []byte) (err error) {
+	return json.Unmarshal(data, &i.address)
+}
+
+func (i Instance) MarshalJSON() ([]byte, error) {
+	return json.Marshal(i.address)
+}
+
+func (i *Instance) GetStatus() InstanceStatus {
+	log.WithField("address", i.address).Debug("Getstatus")
+	s := i.Subscribe()
+	defer s.Close()
+	return <-s.C
+}
+
+type InstanceSubscription struct {
+	C     chan InstanceStatus
+	close chan chan InstanceStatus
+}
+
+func (i *Instance) Subscribe() *InstanceSubscription {
+	if i.broker == nil {
+		i.brokerLock.Lock()
+		if i.broker == nil {
+			i.broker = newInstanceBroker()
+		}
+		i.brokerLock.Unlock()
+	}
+	r := &InstanceSubscription{C: make(chan InstanceStatus), close: i.broker.closingClients}
+	i.broker.newClients <- r.C
+	return r
+}
+
+func (i *Instance) Sub(full bool, depth uint8, maxStale time.Duration) Subscription {
+	return i.Subscribe()
+}
+
+func (s *InstanceSubscription) Close() {
+	s.close <- s.C
+}
+
+func (s *InstanceSubscription) Next() interface{} {
+	return <-s.C
 }
 
 type InstanceStatus struct {
@@ -26,41 +77,78 @@ type InstanceStatus struct {
 	TimeStamp    time.Time     `json:"timestamp"`
 }
 
-type Instance struct {
-	status  *InstanceStatus
-	address string
-	update  chan *InstanceStatusUpdate
+type instanceBroker struct {
+	notifier       chan InstanceStatus
+	newClients     chan chan InstanceStatus
+	closingClients chan chan InstanceStatus
+	clients        map[chan InstanceStatus]struct{}
 }
 
-func submitTSDBMetric(tsdbClient *opentsdb.Client, up bool, start, end time.Time) {
-	tsdbClient.Submit("updog.instance.up", up, start)
-	tsdbClient.Submit("updog.instance.response_time", end.Sub(start), start)
-}
-
-func (i *Instance) RunChecks(co *CheckOptions, iTSDBClient *opentsdb.Client) {
-	interval := time.Duration(co.Interval)
-	l := log.WithField("address", i.address)
-	l.Debug("Starting Checks")
-	time.Sleep(time.Duration(rand.Int63n(interval.Nanoseconds())))
-	t := time.NewTicker(interval)
-	var up bool
-	for {
-		start := time.Now()
-		switch co.Stype {
-		case "tcp_connect":
-			up = tcpConnectCheck(i.address, interval)
-		case "http_status":
-			up = httpStatusCheck(co.HttpMethod, i.address, interval)
-		default:
-			l.WithField("type", co.Stype).Error("Unknown service type")
-			return
-		}
-		end := time.Now()
-		submitTSDBMetric(iTSDBClient, up, start, end)
-		st := &InstanceStatus{Up: up, ResponseTime: end.Sub(start), TimeStamp: end}
-		i.update <- &InstanceStatusUpdate{address: i.address, status: st}
-		<-t.C
+func newInstanceBroker() *instanceBroker {
+	b := &instanceBroker{
+		notifier:       make(chan InstanceStatus),
+		newClients:     make(chan chan InstanceStatus),
+		closingClients: make(chan chan InstanceStatus),
+		clients:        make(map[chan InstanceStatus]struct{}),
 	}
+	go func() {
+		var is InstanceStatus
+		for {
+			select {
+			case c := <-b.newClients:
+				log.WithField("b", b).WithField("is", is).Debug("newClient")
+				b.clients[c] = struct{}{}
+				go func(c chan InstanceStatus, is InstanceStatus) {
+					c <- is
+				}(c, is)
+			case c := <-b.closingClients:
+				delete(b.clients, c)
+			case is = <-b.notifier:
+				log.WithField("b", b).WithField("is", is).Debug("Notified")
+				for c := range b.clients {
+					go func(c chan InstanceStatus, is InstanceStatus) {
+						c <- is
+					}(c, is)
+				}
+			}
+		}
+	}()
+	return b
+}
+
+func (i *Instance) StartChecks(co *CheckOptions) {
+	log.WithField("Address", i.address).Debug("Starting checks")
+
+	if i.broker == nil {
+		i.brokerLock.Lock()
+		if i.broker == nil {
+			i.broker = newInstanceBroker()
+		}
+		i.brokerLock.Unlock()
+	}
+
+	interval := time.Duration(co.Interval)
+	go func() {
+		time.Sleep(time.Duration(rand.Int63n(interval.Nanoseconds())))
+		t := time.NewTicker(interval)
+		var up bool
+		for {
+			start := time.Now()
+			switch co.Stype {
+			case "tcp_connect":
+				up = tcpConnectCheck(i.address, interval)
+			case "http_status":
+				up = httpStatusCheck(co.HttpMethod, i.address, interval)
+			default:
+				log.WithField("type", co.Stype).Error("Unknown service type")
+				return
+			}
+			end := time.Now()
+			st := InstanceStatus{Up: up, ResponseTime: end.Sub(start), TimeStamp: start}
+			go func() { i.broker.notifier <- st }()
+			<-t.C
+		}
+	}()
 }
 
 func tcpConnectCheck(address string, timeout time.Duration) bool {

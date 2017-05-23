@@ -82,13 +82,17 @@ function processMessage(e) {
 
 				instDiv.html('<td class="ind">'+iname+'</td><td class="rtd">'+toMsFormatted(inst.response_time)+'</td><td class="lcd"><time title="'+inst.timestamp+'" ></time></td>');
 				var instTime = instDiv.find('time');
-				instTime.text((moment().unix() - moment(instTime.attr("title")).unix())+"s ago");
+				var timeStamp = moment(instTime.attr("title"))
+				instTime.text((moment().unix() - timeStamp.unix())+"s ago");
 				if (id in timestampUpdaters) {
 					clearInterval(timestampUpdaters[id]);
 				}
-				timestampUpdaters[id] = setInterval(function(){
-					instTime.text((moment().unix() - moment(instTime.attr("title")).unix())+"s ago");
-				}, 1000);
+				setTimeout(function() {
+					instTime.text((moment().unix() - timeStamp.unix())+"s ago");
+					timestampUpdaters[id] = setInterval(function(){
+						instTime.text((moment().unix() - timeStamp.unix())+"s ago");
+					}, 1000);
+				}, 1000 - timeStamp.millisecond());
 			});
 
 				if (serv.instances_up > 0) {

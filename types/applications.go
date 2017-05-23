@@ -29,8 +29,9 @@ func (a *Applications) GetStatus(depth uint8) ApplicationsStatus {
 
 type ApplicationsSubscription struct {
 	baseSubscription
-	C     chan ApplicationsStatus
-	close chan chan ApplicationsStatus
+	C       chan ApplicationsStatus
+	close   chan chan ApplicationsStatus
+	pending ApplicationsStatus
 }
 
 func (a *Applications) Subscribe(full bool, depth uint8, maxStale time.Duration) *ApplicationsSubscription {
@@ -111,14 +112,15 @@ func newApplicationsBroker() *applicationsBroker {
 				if !updated[f] {
 					continue
 				}
-				if !updated[c.opts] {
-					as[c.opts], _ = as[c.opts].filter(c.opts, &as[i], &as[f])
-					updated[c.opts] = true
+				r := newBrokerOptions(true, c.opts.depth())
+				if !updated[r] {
+					as[r], _ = as[r].filter(r, &as[i], &as[f])
+					updated[r] = true
 				}
-				c.lastUpdate = as[c.opts].TimeStamp
+				c.lastUpdate = as[r].TimeStamp
 				go func(c chan ApplicationsStatus, as ApplicationsStatus) {
 					c <- as
-				}(c.C, as[c.opts])
+				}(c.C, as[r])
 			case c := <-b.closingClients:
 				delete(b.clients, c)
 			case as[i] = <-b.notifier:

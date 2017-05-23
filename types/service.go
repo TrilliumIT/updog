@@ -29,8 +29,9 @@ func (s *Service) GetStatus(depth uint8) ServiceStatus {
 
 type ServiceSubscription struct {
 	baseSubscription
-	C     chan ServiceStatus
-	close chan chan ServiceStatus
+	C       chan ServiceStatus
+	close   chan chan ServiceStatus
+	pending ServiceStatus
 }
 
 func (s *Service) Subscribe(full bool, depth uint8, maxStale time.Duration) *ServiceSubscription {
@@ -104,14 +105,15 @@ func newServiceBroker() *serviceBroker {
 				if !updated[f] {
 					continue
 				}
-				if !updated[c.opts] {
-					ss[c.opts], _ = ss[c.opts].filter(c.opts, &ss[i], &ss[f])
-					updated[c.opts] = true
+				r := newBrokerOptions(true, c.opts.depth())
+				if !updated[r] {
+					ss[r], _ = ss[r].filter(r, &ss[i], &ss[f])
+					updated[r] = true
 				}
-				c.lastUpdate = ss[c.opts].TimeStamp
+				c.lastUpdate = ss[r].TimeStamp
 				go func(c chan ServiceStatus, ss ServiceStatus) {
 					c <- ss
-				}(c.C, ss[c.opts])
+				}(c.C, ss[r])
 			case c := <-b.closingClients:
 				delete(b.clients, c)
 			case ss[i] = <-b.notifier:

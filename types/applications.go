@@ -2,6 +2,7 @@ package types
 
 import (
 	"encoding/json"
+	log "github.com/sirupsen/logrus"
 	"sync"
 	"time"
 )
@@ -125,9 +126,13 @@ func newApplicationsBroker() *applicationsBroker {
 			case as[i] = <-b.notifier:
 				var changed [8]bool
 				updated = [8]bool{}
-				changed[f] = as[f].update(f, &as[i], nil)
+				as[f].updateApplicationsFrom(&as[i])
+				as[f].recalculate()
+				changed[f] = true
 				updated[f] = true
-				changed[i] = as[i].update(i, &as[i], &as[f])
+				log.WithField("as[f]", as[f]).Info("WTF")
+				as[i].copySummaryFrom(&as[f])
+				changed[i] = true
 				updated[i] = true
 				for c, o := range b.clients {
 					if !updated[o.opts] {
@@ -152,39 +157,24 @@ func newApplicationsBroker() *applicationsBroker {
 }
 
 func (as *ApplicationsStatus) update(o brokerOptions, asi, asf *ApplicationsStatus) bool {
+	changes := as.copySummaryFrom(asf)
 
-	changes := !as.contains(asi)
-	if changes {
-		as.updateApplicationsFrom(asi)
+	asu := asi
+	if o.full() {
+		asu = asf
 	}
 
-	if o.full() && o.depth() >= 3 {
-		as.recalculate()
+	if !as.contains(asu, o.depth()) {
+		as.updateApplicationsFrom(asu)
+		changes = true
+	}
+
+	if o.depth() <= 0 {
+		as.Applications = map[string]ApplicationStatus{}
 		return changes
 	}
 
-	if o.full() && !as.contains(asf) {
-		as.updateApplicationsFrom(asf)
-	}
-
-	changes = as.copySummaryFrom(asf)
-
-	if o.depth() >= 3 {
-		return changes
-	}
-
-	if o.depth() >= 2 {
-		for an, a := range as.Applications {
-			for sn, s := range as.Applications[an].Services {
-				s.Instances = map[string]InstanceStatus{}
-				a.Services[sn] = s
-			}
-			as.Applications[an] = a
-		}
-		return changes
-	}
-
-	if o.depth() >= 1 {
+	if o.depth() == 1 {
 		for an, a := range as.Applications {
 			a.Services = map[string]ServiceStatus{}
 			as.Applications[an] = a
@@ -192,9 +182,16 @@ func (as *ApplicationsStatus) update(o brokerOptions, asi, asf *ApplicationsStat
 		return changes
 	}
 
-	as.Applications = map[string]ApplicationStatus{}
-	return changes
+	if o.depth() == 2 {
+		for an, a := range as.Applications {
+			for sn, s := range a.Services {
+				s.Instances = map[string]InstanceStatus{}
+				as.Applications[an].Services[sn] = s
+			}
+		}
+	}
 
+	return changes
 }
 
 func (a *Applications) startSubscriptions() {
@@ -267,6 +264,7 @@ func (as *ApplicationsStatus) updateApplicationsFrom(ias *ApplicationsStatus) {
 	for iian, iias := range ias.Applications {
 		aas := as.Applications[iian]
 		aas.updateServicesFrom(&iias)
+		aas.recalculate()
 		as.Applications[iian] = aas
 		if as.TimeStamp.Before(aas.TimeStamp) {
 			as.TimeStamp = iias.TimeStamp
@@ -290,14 +288,14 @@ func (ias *ApplicationsStatus) copySummaryFrom(as *ApplicationsStatus) bool {
 		ias.ServicesFailed == as.ServicesFailed &&
 		ias.InstancesTotal == as.InstancesTotal &&
 		ias.InstancesUp == as.InstancesUp &&
-		ias.InstancesFailed == as.InstancesFailed &&
-		ias.Degraded == as.Degraded &&
-		ias.Failed == as.Failed
+		ias.InstancesFailed == as.InstancesFailed
 
 	if c {
 		return false
 	}
 
+	ias.Degraded = as.Degraded
+	ias.Failed = as.Failed
 	ias.ApplicationsTotal = as.ApplicationsTotal
 	ias.ApplicationsUp = as.ApplicationsUp
 	ias.ApplicationsDegraded = as.ApplicationsDegraded
@@ -312,13 +310,16 @@ func (ias *ApplicationsStatus) copySummaryFrom(as *ApplicationsStatus) bool {
 	return true
 }
 
-func (as *ApplicationsStatus) contains(ias *ApplicationsStatus) bool {
+func (as *ApplicationsStatus) contains(ias *ApplicationsStatus, depth uint8) bool {
+	if depth <= 0 {
+		return true
+	}
 	for an, a := range ias.Applications {
 		asa, ok := as.Applications[an]
 		if !ok {
 			return false
 		}
-		if !asa.contains(&a) {
+		if !asa.contains(&a, depth-1) {
 			return false
 		}
 	}

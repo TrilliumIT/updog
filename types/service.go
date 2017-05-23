@@ -119,9 +119,12 @@ func newServiceBroker() *serviceBroker {
 			case ss[i] = <-b.notifier:
 				var changed [4]bool
 				updated = [4]bool{}
-				changed[f] = ss[f].update(f, &ss[i], nil)
+				ss[f].updateInstancesFrom(&ss[i])
+				ss[f].recalculate()
+				changed[f] = true
 				updated[f] = true
-				changed[i] = ss[i].update(i, &ss[i], &ss[f])
+				ss[i].copySummaryFrom(&ss[f])
+				changed[i] = true
 				updated[i] = true
 				// TODO return based on broker options
 				for c, o := range b.clients {
@@ -143,27 +146,23 @@ func newServiceBroker() *serviceBroker {
 }
 
 func (ss *ServiceStatus) update(o brokerOptions, ssi, ssf *ServiceStatus) bool {
-	changes := !ss.contains(ssi)
-	if changes {
-		ss.updateInstancesFrom(ssi)
+	changes := ss.copySummaryFrom(ssf)
+
+	ssu := ssi
+	if o.full() {
+		ssu = ssf
 	}
 
-	if o.full() && o.depth() >= 1 {
-		ss.recalculate()
+	if !ss.contains(ssu, o.depth()) {
+		ss.updateInstancesFrom(ssu)
+		changes = true
+	}
+
+	if o.depth() <= 0 {
+		ss.Instances = map[string]InstanceStatus{}
 		return changes
 	}
 
-	if o.full() && !ss.contains(ssf) {
-		ss.updateInstancesFrom(ssf)
-	}
-
-	changes = ss.copySummaryFrom(ssf)
-
-	if o.depth() >= 1 {
-		return changes
-	}
-
-	ss.Instances = map[string]InstanceStatus{}
 	return changes
 }
 
@@ -259,16 +258,18 @@ func (ss *ServiceStatus) updateInstancesFrom(iss *ServiceStatus) {
 	}
 }
 
-func (iss *ServiceStatus) copySummaryFrom(ss *ServiceStatus) bool {
-	c := iss.Degraded == ss.Degraded &&
+func (iss *ServiceStatus) summaryEquals(ss *ServiceStatus) bool {
+	return iss.Degraded == ss.Degraded &&
 		iss.Failed == ss.Failed &&
 		iss.InstancesTotal == ss.InstancesTotal &&
 		iss.InstancesFailed == ss.InstancesFailed &&
 		iss.InstancesUp == ss.InstancesUp &&
 		iss.AvgResponseTime == ss.AvgResponseTime
+}
 
+func (iss *ServiceStatus) copySummaryFrom(ss *ServiceStatus) bool {
 	iss.TimeStamp = ss.TimeStamp
-	if c {
+	if iss.summaryEquals(ss) {
 		return false
 	}
 
@@ -283,7 +284,10 @@ func (iss *ServiceStatus) copySummaryFrom(ss *ServiceStatus) bool {
 	return true
 }
 
-func (ss *ServiceStatus) contains(iss *ServiceStatus) bool {
+func (ss *ServiceStatus) contains(iss *ServiceStatus, depth uint8) bool {
+	if depth <= 0 {
+		return true
+	}
 	for in, i := range iss.Instances {
 		ssi, ok := ss.Instances[in]
 		if !ok {

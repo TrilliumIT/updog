@@ -112,9 +112,12 @@ func newApplicationBroker() *applicationBroker {
 			case as[i] = <-b.notifier:
 				var changed [6]bool
 				updated = [6]bool{}
-				changed[f] = as[f].update(f, &as[i], nil)
+				as[f].updateServicesFrom(&as[i])
+				as[f].recalculate()
+				changed[f] = true
 				updated[f] = true
-				changed[i] = as[i].update(i, &as[i], &as[f])
+				as[i].copySummaryFrom(&as[f])
+				changed[i] = true
 				updated[i] = true
 				for c, o := range b.clients {
 					if !updated[o.opts] {
@@ -135,27 +138,24 @@ func newApplicationBroker() *applicationBroker {
 }
 
 func (as *ApplicationStatus) update(o brokerOptions, asi, asf *ApplicationStatus) bool {
-	changes := !as.contains(asi)
-	if changes {
-		as.updateServicesFrom(asi)
+	changes := as.copySummaryFrom(asf)
+
+	asu := asi
+	if o.full() {
+		asu = asf
 	}
 
-	if o.full() && o.depth() >= 2 {
-		as.recalculate()
+	if !as.contains(asu, o.depth()) {
+		as.updateServicesFrom(asu)
+		changes = true
+	}
+
+	if o.depth() <= 0 {
+		as.Services = map[string]ServiceStatus{}
 		return changes
 	}
 
-	if o.full() && !as.contains(asf) {
-		as.updateServicesFrom(asf)
-	}
-
-	changes = as.copySummaryFrom(asf)
-
-	if o.depth() >= 2 {
-		return changes
-	}
-
-	if o.depth() >= 1 {
+	if o.depth() == 1 {
 		for sn, s := range as.Services {
 			s.Instances = map[string]InstanceStatus{}
 			as.Services[sn] = s
@@ -163,9 +163,7 @@ func (as *ApplicationStatus) update(o brokerOptions, asi, asf *ApplicationStatus
 		return changes
 	}
 
-	as.Services = map[string]ServiceStatus{}
 	return changes
-
 }
 
 func (a *Application) startSubscriptions() {
@@ -231,6 +229,7 @@ func (as *ApplicationStatus) updateServicesFrom(ias *ApplicationStatus) {
 	for isn, iss := range ias.Services {
 		ass := as.Services[isn]
 		ass.updateInstancesFrom(&iss)
+		ass.recalculate()
 		as.Services[isn] = ass
 		if as.TimeStamp.Before(ass.TimeStamp) {
 			as.TimeStamp = ass.TimeStamp
@@ -268,13 +267,19 @@ func (ias *ApplicationStatus) copySummaryFrom(as *ApplicationStatus) bool {
 	return true
 }
 
-func (as *ApplicationStatus) contains(ias *ApplicationStatus) bool {
+func (as *ApplicationStatus) contains(ias *ApplicationStatus, depth uint8) bool {
+	if depth <= 0 {
+		return true
+	}
 	for sn, s := range ias.Services {
 		ass, ok := as.Services[sn]
 		if !ok {
 			return false
 		}
-		if !s.contains(&ass) {
+		if !s.summaryEquals(&ass) {
+			return false
+		}
+		if !s.contains(&ass, depth-1) {
 			return false
 		}
 	}

@@ -28,7 +28,7 @@ func (b brokerOptions) full() bool {
 }
 
 type Subscriber interface {
-	Sub(bool, uint8, time.Duration) Subscription
+	Sub(bool, uint8, time.Duration, bool) Subscription
 }
 
 type Subscription interface {
@@ -37,10 +37,11 @@ type Subscription interface {
 }
 
 type baseSubscription struct {
-	opts       brokerOptions
-	maxStale   time.Duration
-	lastUpdate time.Time
-	lastIdx    uint64
+	opts        brokerOptions
+	onlyChanges bool
+	maxStale    time.Duration
+	lastUpdate  time.Time
+	lastIdx     uint64
 }
 
 func (s *baseSubscription) setMaxStale() {

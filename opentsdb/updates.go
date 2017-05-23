@@ -10,7 +10,7 @@ func (c *Client) Subscribe(conf *updog.Config) error {
 		for sn, svc := range app.Services {
 			sc := ac.NewClient(map[string]string{"service": sn})
 			go func() {
-				sub := svc.Subscribe(false, 255, 0)
+				sub := svc.Subscribe(false, 255, 0, false)
 				for ss := range sub.C {
 					sc.Submit("updog.service.degraded", ss.Degraded, ss.TimeStamp)
 					sc.Submit("updog.service.failed", ss.Failed, ss.TimeStamp)

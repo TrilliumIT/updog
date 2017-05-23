@@ -36,17 +36,18 @@ func (i Instance) MarshalJSON() ([]byte, error) {
 
 func (i *Instance) GetStatus() InstanceStatus {
 	log.WithField("address", i.address).Debug("Getstatus")
-	s := i.Subscribe()
+	s := i.Subscribe(false)
 	defer s.Close()
 	return <-s.C
 }
 
 type InstanceSubscription struct {
+	baseSubscription
 	C     chan InstanceStatus
 	close chan chan InstanceStatus
 }
 
-func (i *Instance) Subscribe() *InstanceSubscription {
+func (i *Instance) Subscribe(onlyChanges bool) *InstanceSubscription {
 	if i.broker == nil {
 		i.brokerLock.Lock()
 		if i.broker == nil {
@@ -54,13 +55,19 @@ func (i *Instance) Subscribe() *InstanceSubscription {
 		}
 		i.brokerLock.Unlock()
 	}
-	r := &InstanceSubscription{C: make(chan InstanceStatus), close: i.broker.closingClients}
-	i.broker.newClients <- r.C
+	r := &InstanceSubscription{
+		C:     make(chan InstanceStatus),
+		close: i.broker.closingClients,
+		baseSubscription: baseSubscription{
+			onlyChanges: onlyChanges,
+		},
+	}
+	i.broker.newClients <- r
 	return r
 }
 
-func (i *Instance) Sub(full bool, depth uint8, maxStale time.Duration) Subscription {
-	return i.Subscribe()
+func (i *Instance) Sub(full bool, depth uint8, maxStale time.Duration, onlyChanges bool) Subscription {
+	return i.Subscribe(onlyChanges)
 }
 
 func (s *InstanceSubscription) Close() {
@@ -81,17 +88,17 @@ type InstanceStatus struct {
 
 type instanceBroker struct {
 	notifier       chan InstanceStatus
-	newClients     chan chan InstanceStatus
+	newClients     chan *InstanceSubscription
 	closingClients chan chan InstanceStatus
-	clients        map[chan InstanceStatus]struct{}
+	clients        map[chan InstanceStatus]*InstanceSubscription
 }
 
 func newInstanceBroker() *instanceBroker {
 	b := &instanceBroker{
 		notifier:       make(chan InstanceStatus),
-		newClients:     make(chan chan InstanceStatus),
+		newClients:     make(chan *InstanceSubscription),
 		closingClients: make(chan chan InstanceStatus),
-		clients:        make(map[chan InstanceStatus]struct{}),
+		clients:        make(map[chan InstanceStatus]*InstanceSubscription),
 	}
 	go func() {
 		var is InstanceStatus
@@ -99,18 +106,20 @@ func newInstanceBroker() *instanceBroker {
 			select {
 			case c := <-b.newClients:
 				log.WithField("b", b).WithField("is", is).Debug("newClient")
-				b.clients[c] = struct{}{}
+				b.clients[c.C] = c
 				go func(c chan InstanceStatus, is InstanceStatus) {
 					c <- is
-				}(c, is)
+				}(c.C, is)
 			case c := <-b.closingClients:
 				delete(b.clients, c)
 			case is = <-b.notifier:
 				log.WithField("b", b).WithField("is", is).Debug("Notified")
-				for c := range b.clients {
-					go func(c chan InstanceStatus, is InstanceStatus) {
-						c <- is
-					}(c, is)
+				for c, o := range b.clients {
+					if !o.onlyChanges || o.lastIdx < is.cidx {
+						go func(c chan InstanceStatus, is InstanceStatus) {
+							c <- is
+						}(c, is)
+					}
 				}
 			}
 		}

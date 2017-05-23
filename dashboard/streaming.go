@@ -51,6 +51,16 @@ func (d *Dashboard) streamingHandler(w http.ResponseWriter, r *http.Request, ws 
 		}
 	}
 
+	onlyChanges := false
+	if r.URL.Query().Get("only_changes") != "" {
+		onlyChanges, err = strconv.ParseBool(r.URL.Query().Get("only_changes"))
+		if err != nil {
+			log.WithError(err).Error("Error parsing only_changes value")
+			http.Error(w, "Error parsing only_changes", 400)
+			return
+		}
+	}
+
 	parts := strings.SplitN(strings.Trim(r.URL.Path, "/"), "/", 6)
 	if len(parts) < 3 {
 		parts = []string{"api", "streaming", "applications"}
@@ -58,26 +68,26 @@ func (d *Dashboard) streamingHandler(w http.ResponseWriter, r *http.Request, ws 
 
 	switch parts[2] {
 	case "applications":
-		streamJson(d.conf.Applications, full, uint8(depth), refresh, ws, w, r)
+		streamJson(d.conf.Applications, full, uint8(depth), refresh, onlyChanges, ws, w, r)
 	case "application":
-		streamAppStatus(parts[3:], d.conf, full, uint8(depth), refresh, ws, w, r)
+		streamAppStatus(parts[3:], d.conf, full, uint8(depth), refresh, onlyChanges, ws, w, r)
 	default:
 		http.NotFound(w, r)
 	}
 }
 
-func streamAppStatus(parts []string, conf *updog.Config, full bool, depth uint8, maxStale time.Duration, ws bool, w http.ResponseWriter, r *http.Request) {
+func streamAppStatus(parts []string, conf *updog.Config, full bool, depth uint8, maxStale time.Duration, onlyChanges, ws bool, w http.ResponseWriter, r *http.Request) {
 	log.WithField("lenparts", len(parts)).WithField("parts", parts).Debug("appstatus")
 	app, svc, inst, ok := fromParts(conf, parts)
 	switch {
 	case !ok:
 		http.NotFound(w, r)
 	case inst != nil:
-		streamJson(inst, full, depth, maxStale, ws, w, r)
+		streamJson(inst, full, depth, maxStale, onlyChanges, ws, w, r)
 	case svc != nil:
-		streamJson(svc, full, depth, maxStale, ws, w, r)
+		streamJson(svc, full, depth, maxStale, onlyChanges, ws, w, r)
 	case app != nil:
-		streamJson(app, full, depth, maxStale, ws, w, r)
+		streamJson(app, full, depth, maxStale, onlyChanges, ws, w, r)
 	default:
 		http.NotFound(w, r)
 	}
@@ -88,7 +98,7 @@ var wsUpgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
-func streamJson(subr updog.Subscriber, full bool, depth uint8, maxStale time.Duration, ws bool, w http.ResponseWriter, r *http.Request) {
+func streamJson(subr updog.Subscriber, full bool, depth uint8, maxStale time.Duration, onlyChanges, ws bool, w http.ResponseWriter, r *http.Request) {
 	var process func(interface{}) error
 
 	if ws {
@@ -136,7 +146,7 @@ func streamJson(subr updog.Subscriber, full bool, depth uint8, maxStale time.Dur
 		}
 	}
 
-	sub := subr.Sub(full, depth, maxStale)
+	sub := subr.Sub(full, depth, maxStale, onlyChanges)
 
 	notify := w.(http.CloseNotifier).CloseNotify()
 	go func() {

@@ -21,7 +21,7 @@ func (a Applications) MarshalJSON() ([]byte, error) {
 }
 
 func (a *Applications) GetStatus(depth uint8) ApplicationsStatus {
-	sub := a.Subscribe(true, depth, 0)
+	sub := a.Subscribe(true, depth, 0, false)
 	defer sub.Close()
 	return <-sub.C
 }
@@ -33,7 +33,7 @@ type ApplicationsSubscription struct {
 	pending ApplicationsStatus
 }
 
-func (a *Applications) Subscribe(full bool, depth uint8, maxStale time.Duration) *ApplicationsSubscription {
+func (a *Applications) Subscribe(full bool, depth uint8, maxStale time.Duration, onlyChanges bool) *ApplicationsSubscription {
 	if a.broker == nil {
 		a.brokerLock.Lock()
 		if a.broker == nil {
@@ -46,8 +46,9 @@ func (a *Applications) Subscribe(full bool, depth uint8, maxStale time.Duration)
 		C:     make(chan ApplicationsStatus),
 		close: a.broker.closingClients,
 		baseSubscription: baseSubscription{
-			opts:     newBrokerOptions(full, depth).maxDepth(3),
-			maxStale: maxStale,
+			opts:        newBrokerOptions(full, depth).maxDepth(3),
+			maxStale:    maxStale,
+			onlyChanges: onlyChanges,
 		},
 	}
 	r.setMaxStale()
@@ -55,8 +56,8 @@ func (a *Applications) Subscribe(full bool, depth uint8, maxStale time.Duration)
 	return r
 }
 
-func (a *Applications) Sub(full bool, depth uint8, maxStale time.Duration) Subscription {
-	return a.Subscribe(full, depth, maxStale)
+func (a *Applications) Sub(full bool, depth uint8, maxStale time.Duration, onlyChanges bool) Subscription {
+	return a.Subscribe(full, depth, maxStale, onlyChanges)
 }
 
 func (a *ApplicationsSubscription) Close() {
@@ -135,7 +136,11 @@ func newApplicationsBroker() *applicationsBroker {
 					if as[bo].idx < as[f].idx {
 						as[o.opts].update(o.opts, &as[i], &as[f])
 					}
-					if as[bo].cidx > o.lastIdx || as[bo].TimeStamp.Sub(o.lastUpdate) >= o.maxStale {
+					tidx := as[bo].idx
+					if o.onlyChanges {
+						tidx = as[bo].cidx
+					}
+					if tidx > o.lastIdx || as[bo].TimeStamp.Sub(o.lastUpdate) >= o.maxStale {
 						o.lastUpdate = as[bo].TimeStamp
 						o.lastIdx = as[bo].idx
 						go func(c chan ApplicationsStatus, as ApplicationsStatus) {
@@ -195,7 +200,7 @@ func (a *Applications) startSubscriptions() {
 	updates := make(chan *applicationStatusUpdate)
 	for an, a := range a.Applications {
 		go func(an string, a *Application) {
-			sub := a.Subscribe(false, 255, 0)
+			sub := a.Subscribe(false, 255, 0, false)
 			defer sub.Close()
 			for as := range sub.C {
 				updates <- &applicationStatusUpdate{name: an, s: as}

@@ -22,7 +22,7 @@ type Service struct {
 }
 
 func (s *Service) GetStatus(depth uint8) ServiceStatus {
-	sub := s.Subscribe(true, depth, 0)
+	sub := s.Subscribe(true, depth, 0, false)
 	defer sub.Close()
 	return <-sub.C
 }
@@ -34,7 +34,7 @@ type ServiceSubscription struct {
 	pending ServiceStatus
 }
 
-func (s *Service) Subscribe(full bool, depth uint8, maxStale time.Duration) *ServiceSubscription {
+func (s *Service) Subscribe(full bool, depth uint8, maxStale time.Duration, onlyChanges bool) *ServiceSubscription {
 	if s.broker == nil {
 		s.brokerLock.Lock()
 		if s.broker == nil {
@@ -46,8 +46,9 @@ func (s *Service) Subscribe(full bool, depth uint8, maxStale time.Duration) *Ser
 		C:     make(chan ServiceStatus),
 		close: s.broker.closingClients,
 		baseSubscription: baseSubscription{
-			opts:     newBrokerOptions(full, depth).maxDepth(1),
-			maxStale: maxStale,
+			opts:        newBrokerOptions(full, depth).maxDepth(1),
+			maxStale:    maxStale,
+			onlyChanges: onlyChanges,
 		},
 	}
 	r.setMaxStale()
@@ -55,8 +56,8 @@ func (s *Service) Subscribe(full bool, depth uint8, maxStale time.Duration) *Ser
 	return r
 }
 
-func (s *Service) Sub(full bool, depth uint8, maxStale time.Duration) Subscription {
-	return s.Subscribe(full, depth, maxStale)
+func (s *Service) Sub(full bool, depth uint8, maxStale time.Duration, onlyChanges bool) Subscription {
+	return s.Subscribe(full, depth, maxStale, onlyChanges)
 }
 
 func (s *ServiceSubscription) Close() {
@@ -202,7 +203,7 @@ func (s *Service) StartChecks() {
 		}
 		i.StartChecks(s.CheckOptions)
 		go func(i *Instance) {
-			iSub := i.Subscribe()
+			iSub := i.Subscribe(false)
 			defer iSub.Close()
 			var lc time.Time
 			var ls bool

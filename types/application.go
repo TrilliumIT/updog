@@ -12,7 +12,7 @@ type Application struct {
 }
 
 func (a *Application) GetStatus(depth uint8) ApplicationStatus {
-	sub := a.Subscribe(true, depth, 0)
+	sub := a.Subscribe(true, depth, 0, false)
 	defer sub.Close()
 	return <-sub.C
 }
@@ -24,7 +24,7 @@ type ApplicationSubscription struct {
 	pending ApplicationStatus
 }
 
-func (a *Application) Subscribe(full bool, depth uint8, maxStale time.Duration) *ApplicationSubscription {
+func (a *Application) Subscribe(full bool, depth uint8, maxStale time.Duration, onlyChanges bool) *ApplicationSubscription {
 	if a.broker == nil {
 		a.brokerLock.Lock()
 		if a.broker == nil {
@@ -37,8 +37,9 @@ func (a *Application) Subscribe(full bool, depth uint8, maxStale time.Duration) 
 		C:     make(chan ApplicationStatus),
 		close: a.broker.closingClients,
 		baseSubscription: baseSubscription{
-			opts:     newBrokerOptions(full, depth).maxDepth(2),
-			maxStale: maxStale,
+			opts:        newBrokerOptions(full, depth).maxDepth(2),
+			maxStale:    maxStale,
+			onlyChanges: onlyChanges,
 		},
 	}
 	r.setMaxStale()
@@ -46,8 +47,8 @@ func (a *Application) Subscribe(full bool, depth uint8, maxStale time.Duration) 
 	return r
 }
 
-func (a *Application) Sub(full bool, depth uint8, maxStale time.Duration) Subscription {
-	return a.Subscribe(full, depth, maxStale)
+func (a *Application) Sub(full bool, depth uint8, maxStale time.Duration, onlyChanges bool) Subscription {
+	return a.Subscribe(full, depth, maxStale, onlyChanges)
 }
 
 func (a *ApplicationSubscription) Close() {
@@ -176,7 +177,7 @@ func (a *Application) startSubscriptions() {
 	updates := make(chan *serviceStatusUpdate)
 	for sn, s := range a.Services {
 		go func(sn string, s *Service) {
-			sub := s.Subscribe(false, 255, 0)
+			sub := s.Subscribe(false, 255, 0, false)
 			defer sub.Close()
 			for ss := range sub.C {
 				updates <- &serviceStatusUpdate{name: sn, s: ss}

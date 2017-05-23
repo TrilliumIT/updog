@@ -117,12 +117,10 @@ func newServiceBroker() *serviceBroker {
 			case ss[i] = <-b.notifier:
 				var changed [4]bool
 				updated = [4]bool{}
-				ss[f] = ss[f].updateInstancesFrom(&ss[i])
+				ss[f], changed[f] = ss[i].filter(f, &ss[f])
 				updated[f] = true
-				changed[f] = true
-				ss[i], _ = ss[i].copySummaryFrom(&ss[f])
+				ss[i], changed[i] = ss[i].filter(i, &ss[f])
 				updated[i] = true
-				changed[i] = true
 				// TODO return based on broker options
 				for c, o := range b.clients {
 					if !updated[o.opts] {
@@ -143,11 +141,24 @@ func newServiceBroker() *serviceBroker {
 }
 
 func (ss ServiceStatus) filter(o brokerOptions, ssf *ServiceStatus) (ServiceStatus, bool) {
-	if o.depth() >= 1 {
-		return *ssf, true
-	}
+
 	var changed bool
-	ss, changed = ss.copySummaryFrom(ssf)
+
+	if o.full() {
+		changed = ss.TimeStamp.After(ssf.TimeStamp)
+		if changed {
+			ss = ssf.updateInstancesFrom(&ss)
+		} else {
+			ss = *ssf
+		}
+	} else {
+		ss, changed = ss.copySummaryFrom(ssf)
+	}
+
+	if o.depth() >= 1 {
+		return ss, changed
+	}
+
 	ss.Instances = map[string]InstanceStatus{}
 	return ss, changed
 }

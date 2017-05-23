@@ -110,12 +110,10 @@ func newApplicationBroker() *applicationBroker {
 			case as[i] = <-b.notifier:
 				var changed [6]bool
 				updated = [6]bool{}
-				as[f] = as[f].updateServicesFrom(&as[i])
+				as[f], changed[f] = as[i].filter(f, &as[f])
 				updated[f] = true
-				changed[f] = true
-				as[i], _ = as[i].copySummaryFrom(&as[f])
+				as[i], changed[i] = as[i].filter(i, &as[f])
 				updated[i] = true
-				changed[i] = true
 				for c, o := range b.clients {
 					if !updated[o.opts] {
 						as[o.opts], changed[o.opts] = as[o.opts].filter(o.opts, &as[f])
@@ -135,16 +133,28 @@ func newApplicationBroker() *applicationBroker {
 }
 
 func (as ApplicationStatus) filter(o brokerOptions, asf *ApplicationStatus) (ApplicationStatus, bool) {
-	if o.depth() >= 2 {
-		return *asf, true
-	}
 
 	var changed bool
-	as, changed = as.copySummaryFrom(asf)
 
-	if o.depth() == 1 {
-		for _, s := range as.Services {
+	if o.full() {
+		changed = as.TimeStamp.After(asf.TimeStamp)
+		if changed {
+			as = asf.updateServicesFrom(&as)
+		} else {
+			as = *asf
+		}
+	} else {
+		as, changed = as.copySummaryFrom(asf)
+	}
+
+	if o.depth() >= 2 {
+		return as, changed
+	}
+
+	if o.depth() >= 1 {
+		for sn, s := range as.Services {
 			s.Instances = map[string]InstanceStatus{}
+			as.Services[sn] = s
 		}
 		return as, changed
 	}

@@ -122,6 +122,8 @@ function processMessage(e) {
 	$('.iup').text(data.instances_up+'/'+data.instances_total+' instances');
 }
 
+var idleTime = 0;
+
 $(function() {
 	contentDiv = $('#content');
 	contentDiv.on("click", '.service', function(event) {
@@ -143,6 +145,10 @@ $(function() {
         idleTime = 0;
     });
 });
+
+function timerIncrement() {
+    idleTime = idleTime + 1;
+}
 
 function toMsFormatted(number) {
 	return (Math.round(number/10000)/100).toFixed(2);

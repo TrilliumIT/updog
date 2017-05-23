@@ -2,7 +2,6 @@ package types
 
 import (
 	"encoding/json"
-	log "github.com/sirupsen/logrus"
 	"sync"
 	"time"
 )
@@ -114,8 +113,7 @@ func newApplicationsBroker() *applicationsBroker {
 				}
 				r := newBrokerOptions(true, c.opts.depth())
 				if !updated[r] {
-					log.Error("updating r")
-					as[r].filter(r, &as[i], &as[f])
+					as[r].update(r, &as[i], &as[f])
 					updated[r] = true
 				}
 				c.lastUpdate = as[r].TimeStamp
@@ -127,20 +125,24 @@ func newApplicationsBroker() *applicationsBroker {
 			case as[i] = <-b.notifier:
 				var changed [8]bool
 				updated = [8]bool{}
-				changed[f] = as[f].filter(f, &as[i], nil)
+				changed[f] = as[f].update(f, &as[i], nil)
 				updated[f] = true
-				changed[i] = as[i].filter(i, &as[i], &as[f])
+				changed[i] = as[i].update(i, &as[i], &as[f])
 				updated[i] = true
 				for c, o := range b.clients {
 					if !updated[o.opts] {
 						updated[o.opts] = true
-						changed[o.opts] = as[o.opts].filter(o.opts, &as[i], &as[f])
+						changed[o.opts] = as[o.opts].update(o.opts, &as[i], &as[f])
 					}
-					if changed[o.opts] || as[o.opts].TimeStamp.Sub(o.lastUpdate) >= o.maxStale {
-						o.lastUpdate = as[o.opts].TimeStamp
+					bo := o.opts
+					if o.lastUpdate.IsZero() {
+						bo = newBrokerOptions(true, bo.depth())
+					}
+					if changed[bo] || as[bo].TimeStamp.Sub(o.lastUpdate) >= o.maxStale {
+						o.lastUpdate = as[bo].TimeStamp
 						go func(c chan ApplicationsStatus, as ApplicationsStatus) {
 							c <- as
-						}(c, as[o.opts])
+						}(c, as[bo])
 					}
 				}
 			}
@@ -149,16 +151,23 @@ func newApplicationsBroker() *applicationsBroker {
 	return b
 }
 
-func (as *ApplicationsStatus) filter(o brokerOptions, asi, asf *ApplicationsStatus) bool {
+func (as *ApplicationsStatus) update(o brokerOptions, asi, asf *ApplicationsStatus) bool {
 
 	changes := !as.contains(asi)
 	if changes {
 		as.updateApplicationsFrom(asi)
 	}
 
-	if !o.full() || o.depth() < 3 {
-		changes = as.copySummaryFrom(asf)
+	if o.full() && o.depth() >= 3 {
+		as.recalculate()
+		return changes
 	}
+
+	if o.full() && !as.contains(asf) {
+		as.updateApplicationsFrom(asf)
+	}
+
+	changes = as.copySummaryFrom(asf)
 
 	if o.depth() >= 3 {
 		return changes
@@ -263,10 +272,12 @@ func (as *ApplicationsStatus) updateApplicationsFrom(ias *ApplicationsStatus) {
 			as.TimeStamp = iias.TimeStamp
 		}
 	}
-	as.recalculate()
 }
 
 func (ias *ApplicationsStatus) copySummaryFrom(as *ApplicationsStatus) bool {
+	if as.TimeStamp.After(ias.TimeStamp) {
+		ias.TimeStamp = as.TimeStamp
+	}
 	c := ias.Degraded == as.Degraded &&
 		ias.Failed == as.Failed &&
 		ias.ApplicationsTotal == as.ApplicationsTotal &&
@@ -283,9 +294,6 @@ func (ias *ApplicationsStatus) copySummaryFrom(as *ApplicationsStatus) bool {
 		ias.Degraded == as.Degraded &&
 		ias.Failed == as.Failed
 
-	if as.TimeStamp.After(ias.TimeStamp) {
-		ias.TimeStamp = as.TimeStamp
-	}
 	if c {
 		return false
 	}

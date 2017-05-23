@@ -85,6 +85,7 @@ type ApplicationsStatus struct {
 	InstancesFailed      int                          `json:"instances_failed"`
 	TimeStamp            time.Time                    `json:"timestamp"`
 	LastChange           time.Time                    `json:"last_change"`
+	idx, cidx            uint64
 }
 
 type applicationsBroker struct {
@@ -211,10 +212,19 @@ func (a *Applications) startSubscriptions() {
 		}(an, a)
 	}
 	go func() {
+		lastIdx := make(map[string]uint64)
+		var idx, cidx uint64
 		for au := range updates {
+			idx++
+			if lastIdx[au.name] < au.s.cidx {
+				lastIdx[au.name] = au.s.cidx
+				cidx++
+			}
 			ias := ApplicationsStatus{
 				Applications: map[string]ApplicationStatus{au.name: au.s},
 				TimeStamp:    au.s.TimeStamp,
+				idx:          idx,
+				cidx:         cidx,
 			}
 			go func(as ApplicationsStatus) { a.broker.notifier <- as }(ias)
 		}
@@ -259,6 +269,12 @@ func (as *ApplicationsStatus) recalculate() {
 }
 
 func (as *ApplicationsStatus) updateApplicationsFrom(ias *ApplicationsStatus) {
+	if ias.idx > as.idx {
+		as.idx = ias.idx
+	}
+	if ias.cidx > as.cidx {
+		as.cidx = ias.cidx
+	}
 	if as.Applications == nil {
 		as.Applications = make(map[string]ApplicationStatus)
 	}
@@ -277,6 +293,12 @@ func (as *ApplicationsStatus) updateApplicationsFrom(ias *ApplicationsStatus) {
 }
 
 func (ias *ApplicationsStatus) copySummaryFrom(as *ApplicationsStatus) bool {
+	if as.idx > ias.idx {
+		ias.idx = as.idx
+	}
+	if as.cidx > ias.cidx {
+		ias.cidx = as.cidx
+	}
 	if as.TimeStamp.After(ias.TimeStamp) {
 		ias.TimeStamp = as.TimeStamp
 	}

@@ -76,6 +76,7 @@ type InstanceStatus struct {
 	ResponseTime time.Duration `json:"response_time"`
 	TimeStamp    time.Time     `json:"timestamp"`
 	LastChange   time.Time     `json:"last_change"`
+	idx, cidx    uint64
 }
 
 type instanceBroker struct {
@@ -132,9 +133,11 @@ func (i *Instance) StartChecks(co *CheckOptions) {
 	go func() {
 		time.Sleep(time.Duration(rand.Int63n(interval.Nanoseconds())))
 		t := time.NewTicker(interval)
-		var up bool
+		var up, lastUp bool
+		var idx, cidx uint64
 		var start, end time.Time
 		for {
+			idx++
 			start = time.Now()
 			switch co.Stype {
 			case "tcp_connect":
@@ -146,7 +149,17 @@ func (i *Instance) StartChecks(co *CheckOptions) {
 				return
 			}
 			end = time.Now()
-			go func(st InstanceStatus) { i.broker.notifier <- st }(InstanceStatus{Up: up, ResponseTime: end.Sub(start), TimeStamp: start})
+			if up != lastUp {
+				lastUp = up
+				cidx++
+			}
+			go func(st InstanceStatus) { i.broker.notifier <- st }(InstanceStatus{
+				Up:           up,
+				ResponseTime: end.Sub(start),
+				TimeStamp:    start,
+				idx:          idx,
+				cidx:         cidx,
+			})
 			<-t.C
 		}
 	}()

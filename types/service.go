@@ -78,6 +78,7 @@ type ServiceStatus struct {
 	InstancesFailed int                       `json:"instances_failed"`
 	TimeStamp       time.Time                 `json:"timestamp"`
 	LastChange      time.Time                 `json:"last_change"`
+	idx, cidx       uint64
 }
 
 type serviceBroker struct {
@@ -217,12 +218,21 @@ func (s *Service) StartChecks() {
 	}
 
 	go func() {
+		lastIdx := make(map[string]uint64)
+		var idx, cidx uint64
 		for isu := range updates {
+			idx++
+			if lastIdx[isu.name] < isu.s.cidx {
+				lastIdx[isu.name] = isu.s.cidx
+				cidx++
+			}
 			l := log.WithField("name", isu.name).WithField("status", isu.s)
 			l.Debug("Recieved status update")
 			iss := ServiceStatus{
 				Instances:   map[string]InstanceStatus{isu.name: isu.s},
 				MaxFailures: s.MaxFailures,
+				idx:         idx,
+				cidx:        cidx,
 			}
 			go func(iss ServiceStatus) { s.broker.notifier <- iss }(iss)
 		}
@@ -254,6 +264,12 @@ func (ss *ServiceStatus) recalculate() {
 }
 
 func (ss *ServiceStatus) updateInstancesFrom(iss *ServiceStatus) {
+	if iss.idx > ss.idx {
+		ss.idx = iss.idx
+	}
+	if iss.cidx > ss.cidx {
+		ss.cidx = iss.cidx
+	}
 	ss.MaxFailures = iss.MaxFailures
 	if ss.Instances == nil {
 		ss.Instances = make(map[string]InstanceStatus)
@@ -279,7 +295,15 @@ func (iss *ServiceStatus) summaryEquals(ss *ServiceStatus) bool {
 }
 
 func (iss *ServiceStatus) copySummaryFrom(ss *ServiceStatus) bool {
-	iss.TimeStamp = ss.TimeStamp
+	if ss.idx > iss.idx {
+		iss.idx = ss.idx
+	}
+	if ss.cidx > iss.cidx {
+		iss.cidx = ss.cidx
+	}
+	if iss.TimeStamp.Before(ss.TimeStamp) {
+		iss.TimeStamp = ss.TimeStamp
+	}
 	if iss.summaryEquals(ss) {
 		return false
 	}

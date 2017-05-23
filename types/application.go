@@ -19,8 +19,9 @@ func (a *Application) GetStatus(depth uint8) ApplicationStatus {
 
 type ApplicationSubscription struct {
 	baseSubscription
-	C     chan ApplicationStatus
-	close chan chan ApplicationStatus
+	C       chan ApplicationStatus
+	close   chan chan ApplicationStatus
+	pending ApplicationStatus
 }
 
 func (a *Application) Subscribe(full bool, depth uint8, maxStale time.Duration) *ApplicationSubscription {
@@ -87,8 +88,8 @@ func newApplicationBroker() *applicationBroker {
 	}
 	go func() {
 		var as [6]ApplicationStatus
-		f := newBrokerOptions(true, 1)
-		i := newBrokerOptions(false, 1)
+		f := newBrokerOptions(true, 2)
+		i := newBrokerOptions(false, 2)
 		var updated [6]bool
 		for {
 			select {
@@ -97,28 +98,27 @@ func newApplicationBroker() *applicationBroker {
 				if !updated[f] {
 					continue
 				}
-				if !updated[c.opts] {
-					as[c.opts], _ = as[c.opts].filter(c.opts, &as[f])
-					updated[c.opts] = true
+				r := newBrokerOptions(true, c.opts.depth())
+				if !updated[r] {
+					as[r].filter(r, &as[i], &as[f])
+					updated[r] = true
 				}
-				c.lastUpdate = as[c.opts].TimeStamp
+				c.lastUpdate = as[r].TimeStamp
 				go func(c chan ApplicationStatus, as ApplicationStatus) {
 					c <- as
-				}(c.C, as[c.opts])
+				}(c.C, as[r])
 			case c := <-b.closingClients:
 				delete(b.clients, c)
 			case as[i] = <-b.notifier:
 				var changed [6]bool
 				updated = [6]bool{}
-				as[f] = as[f].updateServicesFrom(&as[i])
+				changed[f] = as[f].filter(f, &as[i], nil)
 				updated[f] = true
-				changed[f] = true
-				as[i], _ = as[i].copySummaryFrom(&as[f])
+				changed[i] = as[i].filter(i, &as[i], &as[f])
 				updated[i] = true
-				changed[i] = true
 				for c, o := range b.clients {
 					if !updated[o.opts] {
-						as[o.opts], changed[o.opts] = as[o.opts].filter(o.opts, &as[f])
+						changed[o.opts] = as[o.opts].filter(o.opts, &as[i], &as[f])
 						updated[o.opts] = true
 					}
 					if changed[o.opts] || as[o.opts].TimeStamp.Sub(o.lastUpdate) >= o.maxStale {
@@ -134,23 +134,30 @@ func newApplicationBroker() *applicationBroker {
 	return b
 }
 
-func (as ApplicationStatus) filter(o brokerOptions, asf *ApplicationStatus) (ApplicationStatus, bool) {
-	if o.depth() >= 2 {
-		return *asf, true
+func (as *ApplicationStatus) filter(o brokerOptions, asi, asf *ApplicationStatus) bool {
+	changes := !as.contains(asi)
+	if changes {
+		as.updateServicesFrom(asi)
 	}
 
-	var changed bool
-	as, changed = as.copySummaryFrom(asf)
+	if !o.full() || o.depth() < 2 {
+		changes = as.copySummaryFrom(asf)
+	}
 
-	if o.depth() == 1 {
-		for _, s := range as.Services {
+	if o.depth() >= 2 {
+		return changes
+	}
+
+	if o.depth() >= 1 {
+		for sn, s := range as.Services {
 			s.Instances = map[string]InstanceStatus{}
+			as.Services[sn] = s
 		}
-		return as, changed
+		return changes
 	}
 
 	as.Services = map[string]ServiceStatus{}
-	return as, changed
+	return changes
 
 }
 
@@ -210,19 +217,22 @@ func (as *ApplicationStatus) recalculate() {
 	return
 }
 
-func (as ApplicationStatus) updateServicesFrom(ias *ApplicationStatus) ApplicationStatus {
-	as.TimeStamp = ias.TimeStamp
+func (as *ApplicationStatus) updateServicesFrom(ias *ApplicationStatus) {
 	if as.Services == nil {
 		as.Services = make(map[string]ServiceStatus)
 	}
 	for isn, iss := range ias.Services {
-		as.Services[isn] = as.Services[isn].updateInstancesFrom(&iss)
+		ass := as.Services[isn]
+		ass.updateInstancesFrom(&iss)
+		as.Services[isn] = ass
+		if as.TimeStamp.Before(ass.TimeStamp) {
+			as.TimeStamp = ass.TimeStamp
+		}
 	}
 	as.recalculate()
-	return as
 }
 
-func (ias ApplicationStatus) copySummaryFrom(as *ApplicationStatus) (ApplicationStatus, bool) {
+func (ias *ApplicationStatus) copySummaryFrom(as *ApplicationStatus) bool {
 	c := ias.Degraded == as.Degraded &&
 		ias.Failed == as.Failed &&
 		ias.ServicesTotal == as.ServicesTotal &&
@@ -233,9 +243,11 @@ func (ias ApplicationStatus) copySummaryFrom(as *ApplicationStatus) (Application
 		ias.InstancesUp == as.InstancesUp &&
 		ias.InstancesFailed == as.InstancesFailed
 
-	ias.TimeStamp = as.TimeStamp
+	if ias.TimeStamp.Before(as.TimeStamp) {
+		ias.TimeStamp = as.TimeStamp
+	}
 	if c {
-		return ias, false
+		return false
 	}
 
 	ias.Degraded = as.Degraded
@@ -247,5 +259,18 @@ func (ias ApplicationStatus) copySummaryFrom(as *ApplicationStatus) (Application
 	ias.InstancesTotal = as.InstancesTotal
 	ias.InstancesUp = as.InstancesUp
 	ias.InstancesFailed = as.InstancesFailed
-	return ias, true
+	return true
+}
+
+func (as *ApplicationStatus) contains(ias *ApplicationStatus) bool {
+	for sn, s := range ias.Services {
+		ass, ok := as.Services[sn]
+		if !ok {
+			return false
+		}
+		if !s.contains(&ass) {
+			return false
+		}
+	}
+	return true
 }

@@ -107,9 +107,11 @@ func newInstanceBroker() *instanceBroker {
 			case c := <-b.newClients:
 				log.WithField("b", b).WithField("is", is).Debug("newClient")
 				b.clients[c.C] = c
-				go func(c chan InstanceStatus, is InstanceStatus) {
-					c <- is
-				}(c.C, is)
+				if is.idx > 0 {
+					go func(c chan InstanceStatus, is InstanceStatus) {
+						c <- is
+					}(c.C, is)
+				}
 			case c := <-b.closingClients:
 				delete(b.clients, c)
 			case is = <-b.notifier:

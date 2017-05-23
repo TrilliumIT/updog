@@ -72,10 +72,20 @@ func sendDataPoints(dps []*opentsdb.DataPoint, addr string) error {
 	if resp.StatusCode != http.StatusNoContent {
 		buf := new(bytes.Buffer)
 		buf.ReadFrom(resp.Body)
-		log.WithFields(log.Fields{
+		l := log.WithFields(log.Fields{
 			"status code": resp.StatusCode,
 			"body":        buf.String(),
-		}).Error("Bad status from opentsdb")
+		})
+		if resp.StatusCode == 400 && len(dps) > 1 { // bad datapoint, try each independently
+			for _, d := range dps {
+				err = sendDataPoints([]*opentsdb.DataPoint{d}, addr)
+				if err != nil {
+					log.WithError(err).WithField("d", d).Error("Bad opentsdb datapoint")
+				}
+			}
+			return nil
+		}
+		l.Error("Bad status from opentsdb")
 		return fmt.Errorf("Bad status from opentsdb")
 	}
 	return nil

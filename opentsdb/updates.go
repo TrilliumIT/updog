@@ -9,7 +9,7 @@ func (c *Client) Subscribe(conf *updog.Config) error {
 		ac := c.NewClient(map[string]string{"application": an})
 		for sn, svc := range app.Services {
 			sc := ac.NewClient(map[string]string{"service": sn})
-			go func(svc *updog.Service) {
+			go func(svc *updog.Service, sc *Client) {
 				sub := svc.Subscribe(false, 255, 0, false)
 				for ss := range sub.C {
 					sc.Submit("updog.service.degraded", ss.Degraded, ss.TimeStamp)
@@ -20,7 +20,7 @@ func (c *Client) Subscribe(conf *updog.Config) error {
 						ic.Submit("updog.instance.response_time", inst.ResponseTime, inst.TimeStamp)
 					}
 				}
-			}(svc)
+			}(svc, sc)
 		}
 	}
 	return nil

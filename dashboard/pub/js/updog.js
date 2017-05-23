@@ -41,9 +41,11 @@ function processMessage(e) {
 				srvStat.text("degraded");
 				if(!srvSum.hasClass("degraded")) {
 					srvTable.slideDown();
-					$('html, body').animate({
-						scrollTop: (appDiv.offset().top)
-					},500);
+					if (idleTime > 60 ) {
+						$('html, body').animate({
+							scrollTop: (appDiv.offset().top)
+						},500);
+					}
 					srvSum.removeClass('up').removeClass('failed');
 				}
 				srvSum.addClass("degraded");
@@ -53,9 +55,11 @@ function processMessage(e) {
 				srvStat.text("failed");
 				if(!srvSum.hasClass("failed")) {
 					srvTable.slideDown();
-					$('html, body').animate({
-						scrollTop: (appDiv.offset().top)
-					},500);
+					if (idleTime > 60 ) {
+						$('html, body').animate({
+							scrollTop: (appDiv.offset().top)
+						},500);
+					}
 					srvSum.removeClass('up').removeClass('degraded');
 				}
 				srvSum.addClass("failed");
@@ -127,6 +131,17 @@ $(function() {
 	contentDiv.on("click", '.serv_sum', function(event) {
 		$(event.target).parent().trigger("click");
 	});
+	
+    //Increment the idle time counter every second.
+    var idleInterval = setInterval(timerIncrement, 1000);
+
+    //Zero the idle timer on mouse movement.
+    $(this).mousemove(function (e) {
+        idleTime = 0;
+    });
+    $(this).keypress(function (e) {
+        idleTime = 0;
+    });
 });
 
 function toMsFormatted(number) {

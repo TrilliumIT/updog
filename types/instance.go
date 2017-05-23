@@ -75,6 +75,7 @@ type InstanceStatus struct {
 	Up           bool          `json:"up"`
 	ResponseTime time.Duration `json:"response_time"`
 	TimeStamp    time.Time     `json:"timestamp"`
+	LastChange   time.Time     `json:"last_change"`
 }
 
 type instanceBroker struct {

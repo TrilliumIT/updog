@@ -77,6 +77,7 @@ type ServiceStatus struct {
 	InstancesUp     int                       `json:"instances_up"`
 	InstancesFailed int                       `json:"instances_failed"`
 	TimeStamp       time.Time                 `json:"timestamp"`
+	LastChange      time.Time                 `json:"last_change"`
 }
 
 type serviceBroker struct {
@@ -202,7 +203,14 @@ func (s *Service) StartChecks() {
 		go func(i *Instance) {
 			iSub := i.Subscribe()
 			defer iSub.Close()
+			var lc time.Time
+			var ls bool
 			for is := range iSub.C {
+				if is.Up != ls {
+					ls = is.Up
+					lc = is.TimeStamp
+				}
+				is.LastChange = lc
 				updates <- &instanceStatusUpdate{s: is, name: i.address}
 			}
 		}(i)
@@ -254,6 +262,9 @@ func (ss *ServiceStatus) updateInstancesFrom(iss *ServiceStatus) {
 		ss.Instances[in] = i
 		if ss.TimeStamp.Before(i.TimeStamp) {
 			ss.TimeStamp = i.TimeStamp
+		}
+		if ss.LastChange.Before(i.LastChange) {
+			ss.LastChange = i.LastChange
 		}
 	}
 }

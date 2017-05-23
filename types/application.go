@@ -70,6 +70,7 @@ type ApplicationStatus struct {
 	InstancesUp      int                      `json:"instances_up"`
 	InstancesFailed  int                      `json:"instances_failed"`
 	TimeStamp        time.Time                `json:"timestamp"`
+	LastChange       time.Time                `json:"last_change"`
 }
 
 type applicationBroker struct {
@@ -233,6 +234,9 @@ func (as *ApplicationStatus) updateServicesFrom(ias *ApplicationStatus) {
 		as.Services[isn] = ass
 		if as.TimeStamp.Before(ass.TimeStamp) {
 			as.TimeStamp = ass.TimeStamp
+		}
+		if as.LastChange.Before(ass.LastChange) {
+			as.LastChange = ass.LastChange
 		}
 	}
 }

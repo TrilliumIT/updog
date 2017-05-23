@@ -144,16 +144,6 @@ func newServiceBroker() *serviceBroker {
 
 func (ss *ServiceStatus) filter(o brokerOptions, ssi, ssf *ServiceStatus) bool {
 	changes := !ss.contains(ssi)
-	log.WithFields(log.Fields{
-		"ss":      ss,
-		"ssi":     ssi,
-		"ssf":     ssf,
-		"o":       o,
-		"changes": changes,
-		"full":    o.full(),
-		"depth":   o.depth(),
-	}).Info("WTF")
-
 	if changes {
 		ss.updateInstancesFrom(ssi)
 	}

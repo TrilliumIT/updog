@@ -263,14 +263,13 @@ func (ias *ApplicationStatus) copySummaryFrom(as *ApplicationStatus) bool {
 }
 
 func (as *ApplicationStatus) contains(ias *ApplicationStatus) bool {
-	return false
 	for sn, s := range ias.Services {
-		for in, i := range s.Instances {
-			if i.TimeStamp != as.Services[sn].Instances[in].TimeStamp ||
-				i.ResponseTime != as.Services[sn].Instances[in].ResponseTime ||
-				i.Up != as.Services[sn].Instances[in].Up {
-				return false
-			}
+		ass, ok := as.Services[sn]
+		if !ok {
+			return false
+		}
+		if !s.contains(&ass) {
+			return false
 		}
 	}
 	return true

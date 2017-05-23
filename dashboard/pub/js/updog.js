@@ -1,10 +1,11 @@
 //window.setInterval(updateApplications, 5000);
-window.setInterval(updateTimestamps, 1000);
+//window.setInterval(updateTimestamps, 1000);
 
 var jsonStream = new EventSource('/api/streaming/applications/')
 jsonStream.onmessage = processMessage
 
 var contentDiv = $('#content');
+var timestampUpdaters = {};
 
 function processMessage(e) {
 	var data = JSON.parse(e.data);
@@ -80,6 +81,14 @@ function processMessage(e) {
 				}
 
 				instDiv.html('<td class="ind">'+iname+'</td><td class="rtd">'+toMsFormatted(inst.response_time)+'</td><td class="lcd"><time title="'+inst.timestamp+'" ></time></td>');
+				var instTime = instDiv.find('time');
+				instTime.text((moment().unix() - moment(instTime.attr("title")).unix())+"s ago");
+				if (id in timestampUpdaters) {
+					clearInterval(timestampUpdaters[id]);
+				}
+				timestampUpdaters[id] = setInterval(function(){
+					instTime.text((moment().unix() - moment(instTime.attr("title")).unix())+"s ago");
+				}, 1000);
 			});
 
 				if (serv.instances_up > 0) {

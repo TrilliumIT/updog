@@ -114,7 +114,8 @@ func newApplicationsBroker() *applicationsBroker {
 				}
 				r := newBrokerOptions(true, c.opts.depth())
 				if !updated[r] {
-					as[r], _ = as[r].filter(r, &as[i], &as[f])
+					log.Error("updating r")
+					as[r].filter(r, &as[i], &as[f])
 					updated[r] = true
 				}
 				c.lastUpdate = as[r].TimeStamp
@@ -126,14 +127,14 @@ func newApplicationsBroker() *applicationsBroker {
 			case as[i] = <-b.notifier:
 				var changed [8]bool
 				updated = [8]bool{}
-				as[f], changed[f] = as[f].filter(f, &as[i], nil)
+				changed[f] = as[f].filter(f, &as[i], nil)
 				updated[f] = true
-				as[i], changed[i] = as[i].filter(i, &as[i], &as[f])
+				changed[i] = as[i].filter(i, &as[i], &as[f])
 				updated[i] = true
 				for c, o := range b.clients {
 					if !updated[o.opts] {
 						updated[o.opts] = true
-						as[o.opts], changed[o.opts] = as[o.opts].filter(o.opts, &as[i], &as[f])
+						changed[o.opts] = as[o.opts].filter(o.opts, &as[i], &as[f])
 					}
 					if changed[o.opts] || as[o.opts].TimeStamp.Sub(o.lastUpdate) >= o.maxStale {
 						o.lastUpdate = as[o.opts].TimeStamp
@@ -148,25 +149,19 @@ func newApplicationsBroker() *applicationsBroker {
 	return b
 }
 
-func (as ApplicationsStatus) filter(o brokerOptions, asi, asf *ApplicationsStatus) (ApplicationsStatus, bool) {
+func (as *ApplicationsStatus) filter(o brokerOptions, asi, asf *ApplicationsStatus) bool {
 
-	changed := as.contains(asi)
-	if changed {
+	changes := !as.contains(asi)
+	if changes {
 		as.updateApplicationsFrom(asi)
 	}
 
-	if !o.full() {
-		changed = as.copySummaryFrom(asf)
+	if !o.full() || o.depth() < 3 {
+		changes = as.copySummaryFrom(asf)
 	}
-	log.WithFields(log.Fields{
-		"changed": changed,
-		"asf":     asf,
-		"asi":     asi,
-		"o":       o,
-	}).Info("changed")
 
 	if o.depth() >= 3 {
-		return as, changed
+		return changes
 	}
 
 	if o.depth() >= 2 {
@@ -177,7 +172,7 @@ func (as ApplicationsStatus) filter(o brokerOptions, asi, asf *ApplicationsStatu
 			}
 			as.Applications[an] = a
 		}
-		return as, changed
+		return changes
 	}
 
 	if o.depth() >= 1 {
@@ -185,11 +180,11 @@ func (as ApplicationsStatus) filter(o brokerOptions, asi, asf *ApplicationsStatu
 			a.Services = map[string]ServiceStatus{}
 			as.Applications[an] = a
 		}
-		return as, changed
+		return changes
 	}
 
 	as.Applications = map[string]ApplicationStatus{}
-	return as, changed
+	return changes
 
 }
 
@@ -264,7 +259,7 @@ func (as *ApplicationsStatus) updateApplicationsFrom(ias *ApplicationsStatus) {
 		aas := as.Applications[iian]
 		aas.updateServicesFrom(&iias)
 		as.Applications[iian] = aas
-		if as.TimeStamp.Before(iias.TimeStamp) {
+		if as.TimeStamp.Before(aas.TimeStamp) {
 			as.TimeStamp = iias.TimeStamp
 		}
 	}
@@ -310,16 +305,17 @@ func (ias *ApplicationsStatus) copySummaryFrom(as *ApplicationsStatus) bool {
 }
 
 func (as *ApplicationsStatus) contains(ias *ApplicationsStatus) bool {
+	return false
 	for an, a := range ias.Applications {
 		for sn, s := range a.Services {
 			for in, i := range s.Instances {
 				if i.TimeStamp != as.Applications[an].Services[sn].Instances[in].TimeStamp ||
 					i.ResponseTime != as.Applications[an].Services[sn].Instances[in].ResponseTime ||
 					i.Up != as.Applications[an].Services[sn].Instances[in].Up {
-					return true
+					return false
 				}
 			}
 		}
 	}
-	return false
+	return true
 }

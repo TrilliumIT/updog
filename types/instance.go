@@ -132,8 +132,9 @@ func (i *Instance) StartChecks(co *CheckOptions) {
 		time.Sleep(time.Duration(rand.Int63n(interval.Nanoseconds())))
 		t := time.NewTicker(interval)
 		var up bool
+		var start, end time.Time
 		for {
-			start := time.Now()
+			start = time.Now()
 			switch co.Stype {
 			case "tcp_connect":
 				up = tcpConnectCheck(i.address, interval)
@@ -143,9 +144,8 @@ func (i *Instance) StartChecks(co *CheckOptions) {
 				log.WithField("type", co.Stype).Error("Unknown service type")
 				return
 			}
-			end := time.Now()
-			st := InstanceStatus{Up: up, ResponseTime: end.Sub(start), TimeStamp: start}
-			go func() { i.broker.notifier <- st }()
+			end = time.Now()
+			go func(st InstanceStatus) { i.broker.notifier <- st }(InstanceStatus{Up: up, ResponseTime: end.Sub(start), TimeStamp: start})
 			<-t.C
 		}
 	}()

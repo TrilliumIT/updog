@@ -107,7 +107,7 @@ func newServiceBroker() *serviceBroker {
 				}
 				r := newBrokerOptions(true, c.opts.depth())
 				if !updated[r] {
-					ss[r], _ = ss[r].filter(r, &ss[i], &ss[f])
+					ss[r].filter(r, &ss[i], &ss[f])
 					updated[r] = true
 				}
 				c.lastUpdate = ss[r].TimeStamp
@@ -119,14 +119,14 @@ func newServiceBroker() *serviceBroker {
 			case ss[i] = <-b.notifier:
 				var changed [4]bool
 				updated = [4]bool{}
-				ss[f], changed[f] = ss[f].filter(f, &ss[i], nil)
+				changed[f] = ss[f].filter(f, &ss[i], nil)
 				updated[f] = true
-				ss[i], changed[i] = ss[i].filter(i, &ss[i], &ss[f])
+				changed[i] = ss[i].filter(i, &ss[i], &ss[f])
 				updated[i] = true
 				// TODO return based on broker options
 				for c, o := range b.clients {
 					if !updated[o.opts] {
-						ss[o.opts], changed[o.opts] = ss[o.opts].filter(o.opts, &ss[i], &ss[f])
+						changed[o.opts] = ss[o.opts].filter(o.opts, &ss[i], &ss[f])
 						updated[o.opts] = true
 					}
 					if changed[o.opts] || ss[o.opts].TimeStamp.Sub(o.lastUpdate) >= o.maxStale {
@@ -142,22 +142,32 @@ func newServiceBroker() *serviceBroker {
 	return b
 }
 
-func (ss ServiceStatus) filter(o brokerOptions, ssi, ssf *ServiceStatus) (ServiceStatus, bool) {
-	changed := ss.contains(ssi)
-	if changed {
+func (ss *ServiceStatus) filter(o brokerOptions, ssi, ssf *ServiceStatus) bool {
+	changes := !ss.contains(ssi)
+	log.WithFields(log.Fields{
+		"ss":      ss,
+		"ssi":     ssi,
+		"ssf":     ssf,
+		"o":       o,
+		"changes": changes,
+		"full":    o.full(),
+		"depth":   o.depth(),
+	}).Info("WTF")
+
+	if changes {
 		ss.updateInstancesFrom(ssi)
 	}
 
-	if !o.full() {
-		changed = ss.copySummaryFrom(ssf)
+	if !o.full() || o.depth() < 1 {
+		changes = ss.copySummaryFrom(ssf)
 	}
 
 	if o.depth() >= 1 {
-		return ss, changed
+		return changes
 	}
 
 	ss.Instances = map[string]InstanceStatus{}
-	return ss, changed
+	return changes
 }
 
 func (s *Service) StartChecks() {
@@ -209,7 +219,6 @@ func (s *Service) StartChecks() {
 			iss := ServiceStatus{
 				Instances:   map[string]InstanceStatus{isu.name: isu.s},
 				MaxFailures: s.MaxFailures,
-				TimeStamp:   isu.s.TimeStamp,
 			}
 			go func(iss ServiceStatus) { s.broker.notifier <- iss }(iss)
 		}
@@ -262,9 +271,7 @@ func (iss *ServiceStatus) copySummaryFrom(ss *ServiceStatus) bool {
 		iss.Degraded == ss.Degraded &&
 		iss.Failed == ss.Failed
 
-	if iss.TimeStamp.Before(ss.TimeStamp) {
-		iss.TimeStamp = ss.TimeStamp
-	}
+	iss.TimeStamp = ss.TimeStamp
 	if c {
 		return false
 	}
@@ -280,11 +287,19 @@ func (iss *ServiceStatus) copySummaryFrom(ss *ServiceStatus) bool {
 
 func (ss *ServiceStatus) contains(iss *ServiceStatus) bool {
 	for in, i := range iss.Instances {
-		if i.TimeStamp != ss.Instances[in].TimeStamp ||
-			i.ResponseTime != ss.Instances[in].ResponseTime ||
-			i.Up != ss.Instances[in].Up {
-			return true
+		ssi, ok := ss.Instances[in]
+		if !ok {
+			return false
+		}
+		if i.TimeStamp != ssi.TimeStamp {
+			return false
+		}
+		if i.ResponseTime != ssi.ResponseTime {
+			return false
+		}
+		if i.Up != ssi.Up {
+			return false
 		}
 	}
-	return false
+	return true
 }

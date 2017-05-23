@@ -152,10 +152,9 @@ func streamJson(subr updog.Subscriber, full bool, depth uint8, maxStale time.Dur
 		default:
 		}
 		l := log.WithField("data", d)
-		l.Debug("Sending streaming update")
 
 		if err := process(d); err != nil {
-			log.WithError(err).Error("Error from process function")
+			l.WithError(err).Error("Error from process function")
 			return
 		}
 	}

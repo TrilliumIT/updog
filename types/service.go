@@ -224,7 +224,7 @@ func (s *Service) StartChecks() {
 			idx++
 			if lastIdx[isu.name] < isu.s.cidx {
 				lastIdx[isu.name] = isu.s.cidx
-				cidx++
+				cidx = idx
 			}
 			l := log.WithField("name", isu.name).WithField("status", isu.s)
 			l.Debug("Recieved status update")

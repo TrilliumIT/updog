@@ -190,7 +190,7 @@ func (a *Application) startSubscriptions() {
 			idx++
 			if lastIdx[su.name] < su.s.cidx {
 				lastIdx[su.name] = su.s.cidx
-				cidx++
+				cidx = idx
 			}
 			as := ApplicationStatus{
 				Services:  map[string]ServiceStatus{su.name: su.s},

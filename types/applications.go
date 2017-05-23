@@ -2,7 +2,6 @@ package types
 
 import (
 	"encoding/json"
-	log "github.com/sirupsen/logrus"
 	"sync"
 	"time"
 )
@@ -133,10 +132,6 @@ func newApplicationsBroker() *applicationsBroker {
 					if o.lastIdx == 0 {
 						bo = newBrokerOptions(true, bo.depth())
 					}
-					log.WithFields(log.Fields{
-						"lastidx": o.lastIdx,
-						"bo idx":  as[bo].idx,
-					}).Info("WTF")
 					if as[bo].idx < as[f].idx {
 						as[o.opts].update(o.opts, &as[i], &as[f])
 					}
@@ -214,7 +209,7 @@ func (a *Applications) startSubscriptions() {
 			idx++
 			if lastIdx[au.name] < au.s.cidx {
 				lastIdx[au.name] = au.s.cidx
-				cidx++
+				cidx = idx
 			}
 			ias := ApplicationsStatus{
 				Applications: map[string]ApplicationStatus{au.name: au.s},

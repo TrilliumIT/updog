@@ -151,7 +151,7 @@ func (i *Instance) StartChecks(co *CheckOptions) {
 			end = time.Now()
 			if up != lastUp {
 				lastUp = up
-				cidx++
+				cidx = idx
 			}
 			go func(st InstanceStatus) { i.broker.notifier <- st }(InstanceStatus{
 				Up:           up,

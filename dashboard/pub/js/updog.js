@@ -92,7 +92,7 @@ function processMessage(e) {
 					timestampUpdaters[id] = setInterval(function(){
 						instTime.text((moment().unix() - timeStamp.unix())+"s ago");
 					}, 1000);
-				}, 1000 - timeStamp.millisecond());
+				}, (moment.valueOf() - timeStamp.valueOf())%1000);
 			});
 
 				if (serv.instances_up > 0) {

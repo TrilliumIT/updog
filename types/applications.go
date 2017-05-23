@@ -104,49 +104,45 @@ func newApplicationsBroker() *applicationsBroker {
 	}
 	go func() {
 		var as [8]ApplicationsStatus
-		var updated [8]bool
 		f := newBrokerOptions(true, 3)
 		i := newBrokerOptions(false, 3)
 		for {
 			select {
 			case c := <-b.newClients:
 				b.clients[c.C] = c
-				if !updated[f] {
+				if as[f].idx == 0 {
 					continue
 				}
 				r := newBrokerOptions(true, c.opts.depth())
-				if !updated[r] {
+				if as[r].idx < as[f].idx {
 					as[r].update(r, &as[i], &as[f])
-					updated[r] = true
 				}
 				c.lastUpdate = as[r].TimeStamp
+				c.lastIdx = as[r].idx
 				go func(c chan ApplicationsStatus, as ApplicationsStatus) {
 					c <- as
 				}(c.C, as[r])
 			case c := <-b.closingClients:
 				delete(b.clients, c)
 			case as[i] = <-b.notifier:
-				var changed [8]bool
-				updated = [8]bool{}
 				as[f].updateApplicationsFrom(&as[i])
 				as[f].recalculate()
-				changed[f] = true
-				updated[f] = true
-				log.WithField("as[f]", as[f]).Info("WTF")
 				as[i].copySummaryFrom(&as[f])
-				changed[i] = true
-				updated[i] = true
 				for c, o := range b.clients {
-					if !updated[o.opts] {
-						updated[o.opts] = true
-						changed[o.opts] = as[o.opts].update(o.opts, &as[i], &as[f])
-					}
 					bo := o.opts
-					if o.lastUpdate.IsZero() {
+					if o.lastIdx == 0 {
 						bo = newBrokerOptions(true, bo.depth())
 					}
-					if changed[bo] || as[bo].TimeStamp.Sub(o.lastUpdate) >= o.maxStale {
+					log.WithFields(log.Fields{
+						"lastidx": o.lastIdx,
+						"bo idx":  as[bo].idx,
+					}).Info("WTF")
+					if as[bo].idx < as[f].idx {
+						as[o.opts].update(o.opts, &as[i], &as[f])
+					}
+					if as[bo].cidx > o.lastIdx || as[bo].TimeStamp.Sub(o.lastUpdate) >= o.maxStale {
 						o.lastUpdate = as[bo].TimeStamp
+						o.lastIdx = as[bo].idx
 						go func(c chan ApplicationsStatus, as ApplicationsStatus) {
 							c <- as
 						}(c, as[bo])

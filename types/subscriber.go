@@ -40,6 +40,7 @@ type baseSubscription struct {
 	opts       brokerOptions
 	maxStale   time.Duration
 	lastUpdate time.Time
+	lastIdx    uint64
 }
 
 func (s *baseSubscription) setMaxStale() {

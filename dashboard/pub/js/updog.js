@@ -28,41 +28,35 @@ function processMessage(e) {
 			var srvStat = srvDiv.find('.stat')
 			var srvTable = srvDiv.children('.inst_table')
 
-			if (!serv.degraded && !serv.failed) {
-				srvStat.text("up");
-				if(!srvSum.hasClass("up")) {
-					srvTable.slideUp();
-					srvSum.removeClass('degraded').removeClass('failed');
-				}
+			if (!serv.degraded && !serv.failed && !srvSum.hasClass("up")) {
+				srvTable.slideUp();
 				srvSum.addClass("up");
+				srvStat.text("up");
+				srvSum.removeClass('degraded').removeClass('failed');
 			}
 
-			if (serv.degraded && !serv.failed) {
-				srvStat.text("degraded");
-				if(!srvSum.hasClass("degraded")) {
-					srvTable.slideDown();
-					if (idleTime > 60 ) {
-						$('html, body').animate({
-							scrollTop: (appDiv.offset().top)
-						},500);
-					}
-					srvSum.removeClass('up').removeClass('failed');
+			if (serv.degraded && !serv.failed && !srvSum.hasClass("degraded")) {
+				srvTable.slideDown();
+				if (idleTime > 60 ) {
+					$('html, body').animate({
+						scrollTop: (appDiv.offset().top)
+					},500);
 				}
 				srvSum.addClass("degraded");
+				srvStat.text("degraded");
+				srvSum.removeClass('up').removeClass('failed');
 			}
 
-			if (serv.failed) {
-				srvStat.text("failed");
-				if(!srvSum.hasClass("failed")) {
-					srvTable.slideDown();
-					if (idleTime > 60 ) {
-						$('html, body').animate({
-							scrollTop: (appDiv.offset().top)
-						},500);
-					}
-					srvSum.removeClass('up').removeClass('degraded');
+			if (serv.failed && !srvSum.hasClass("failed")) {
+				srvTable.slideDown();
+				if (idleTime > 60 ) {
+					$('html, body').animate({
+						scrollTop: (appDiv.offset().top)
+					},500);
 				}
 				srvSum.addClass("failed");
+				srvStat.text("failed");
+				srvSum.removeClass('up').removeClass('degraded');
 			}
 
 			var tot_rt = 0
@@ -99,31 +93,37 @@ function processMessage(e) {
 				}, (moment.valueOf() - timeStamp.valueOf())%1000);
 			});
 
+				var artText = "no response"
 				if (serv.instances_up > 0) {
-					srvDiv.find('.art').text(toMsFormatted(serv.average_response_time)+"ms avg");
-				} else {
-					srvDiv.find('.art').text("no response");
+					artText = toMsFormatted(serv.average_response_time)+"ms avg";
 				}
-				srvDiv.find('.nup').text(serv.instances_up+"/"+(serv.instances_total)+" up");
+				srvDiv.find('.art').filter(function() {
+					return $(this).text() !== artText
+				}).text(artText)
+
+				var nupText = serv.instances_up+"/"+(serv.instances_total)+" up";
+				srvDiv.find('.nup').filter(function() {
+					return $(this).text() !== nupText
+				}).text(nupText)
 			});
 	});
 
-	header = $('.header')
-	if(data.failed && !header.hasClass('failed')) {
-		header.addClass('failed').removeClass('degraded').removeClass('up');
-	} else if(data.degraded && !header.hasClass(('degraded')) {
-		header.addClass("degraded").removeClass('failed').removeClass('up');
-	} else if(!data.degraded && !data.failed && !header.hasClass('up')) {
+	header = $('.header');
+	if (!data.degraded && !data.failed && !header.hasClass('up')) {
 		header.addClass('up').removeClass('failed').removeClass('degraded');
+	} else if (data.failed && !header.hasClass('failed')) {
+		header.addClass('failed').removeClass('degraded').removeClass('up');
+	} else if (data.degraded && !header.hasClass('degraded')) {
+		header.addClass("degraded").removeClass('failed').removeClass('up');
 	}
 
 	var aupText = data.applications_up+'/'+data.applications_total+' apps';
 	$('.aup').filter(function() {
-		return $(this).text() === aupText
+		return $(this).text() !== aupText
 	}).text(aupText)
 	var supText = data.services_up+'/'+data.services_total+' services';
 	$('.sup').filter(function() {
-		return $(this).text() === supText
+		return $(this).text() !== supText
 	}).text(supText)
 	var iupText = data.instances_up+'/'+data.instances_total+' instances';
 	$('.iup').filter(function() {

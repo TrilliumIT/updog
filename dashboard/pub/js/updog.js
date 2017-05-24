@@ -109,17 +109,26 @@ function processMessage(e) {
 	});
 
 	header = $('.header')
-	if(data.failed) {
-		header.addClass("failed").removeClass('degraded').removeClass('up');
-	} else if(data.degraded) {
+	if(data.failed && !header.hasClass('failed')) {
+		header.addClass('failed').removeClass('degraded').removeClass('up');
+	} else if(data.degraded && !header.hasClass(('degraded')) {
 		header.addClass("degraded").removeClass('failed').removeClass('up');
-	} else {
-		header.addClass("up").removeClass('failed').removeClass('degraded');
+	} else if(!data.degraded && !data.failed && !header.hasClass('up')) {
+		header.addClass('up').removeClass('failed').removeClass('degraded');
 	}
 
-	$('.aup').text(data.applications_up+'/'+data.applications_total+' apps');
-	$('.sup').text(data.services_up+'/'+data.services_total+' services');
-	$('.iup').text(data.instances_up+'/'+data.instances_total+' instances');
+	var aupText = data.applications_up+'/'+data.applications_total+' apps';
+	$('.aup').filter(function() {
+		return $(this).text() === aupText
+	}).text(aupText)
+	var supText = data.services_up+'/'+data.services_total+' services';
+	$('.sup').filter(function() {
+		return $(this).text() === supText
+	}).text(supText)
+	var iupText = data.instances_up+'/'+data.instances_total+' instances';
+	$('.iup').filter(function() {
+		return $(this).text() === iupText
+	}).text(iupText)
 }
 
 var idleTime = 0;

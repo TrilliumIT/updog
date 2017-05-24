@@ -127,7 +127,7 @@ function processMessage(e) {
 	}).text(supText)
 	var iupText = data.instances_up+'/'+data.instances_total+' instances';
 	$('.iup').filter(function() {
-		return $(this).text() === iupText
+		return $(this).text() !== iupText
 	}).text(iupText)
 }
 

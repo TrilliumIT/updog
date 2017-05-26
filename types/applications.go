@@ -79,7 +79,7 @@ func newApplicationsBroker() *applicationsBroker {
 			case c := <-b.closingClients:
 				delete(b.clients, c)
 			case as[i] = <-b.notifier:
-				as[f].updateApplicationsFrom(&as[i])
+				as[f].updateFrom(&as[i])
 				as[f].recalculate()
 				as[i].copySummaryFrom(&as[f])
 				for c, o := range b.clients {
@@ -117,7 +117,7 @@ func (as *ApplicationsStatus) update(o brokerOptions, asi, asf *ApplicationsStat
 	}
 
 	if !as.contains(asu, o.depth()) {
-		as.updateApplicationsFrom(asu)
+		as.updateFrom(asu)
 		changes = true
 	}
 
@@ -218,7 +218,7 @@ func (as *ApplicationsStatus) recalculate() {
 	}
 }
 
-func (as *ApplicationsStatus) updateApplicationsFrom(ias *ApplicationsStatus) {
+func (as *ApplicationsStatus) updateFrom(ias *ApplicationsStatus) {
 	if ias.idx > as.idx {
 		as.idx = ias.idx
 	}
@@ -230,7 +230,7 @@ func (as *ApplicationsStatus) updateApplicationsFrom(ias *ApplicationsStatus) {
 	}
 	for iian, iias := range ias.Applications {
 		aas := as.Applications[iian]
-		aas.updateServicesFrom(&iias)
+		aas.updateFrom(&iias)
 		aas.recalculate()
 		as.Applications[iian] = aas
 		if as.TimeStamp.Before(aas.TimeStamp) {

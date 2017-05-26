@@ -69,7 +69,7 @@ func newApplicationBroker() *applicationBroker {
 			case as[i] = <-b.notifier:
 				var changed [6]bool
 				updated = [6]bool{}
-				as[f].updateServicesFrom(&as[i])
+				as[f].updateFrom(&as[i])
 				as[f].recalculate()
 				changed[f] = true
 				updated[f] = true
@@ -103,7 +103,7 @@ func (as *ApplicationStatus) update(o brokerOptions, asi, asf *ApplicationStatus
 	}
 
 	if !as.contains(asu, o.depth()) {
-		as.updateServicesFrom(asu)
+		as.updateFrom(asu)
 		changes = true
 	}
 
@@ -188,7 +188,7 @@ func (as *ApplicationStatus) recalculate() {
 	return
 }
 
-func (as *ApplicationStatus) updateServicesFrom(ias *ApplicationStatus) {
+func (as *ApplicationStatus) updateFrom(ias *ApplicationStatus) {
 	if ias.idx > as.idx {
 		as.idx = ias.idx
 	}
@@ -200,7 +200,7 @@ func (as *ApplicationStatus) updateServicesFrom(ias *ApplicationStatus) {
 	}
 	for isn, iss := range ias.Services {
 		ass := as.Services[isn]
-		ass.updateInstancesFrom(&iss)
+		ass.updateFrom(&iss)
 		ass.recalculate()
 		as.Services[isn] = ass
 		if as.TimeStamp.Before(ass.TimeStamp) {

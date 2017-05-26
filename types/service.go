@@ -77,7 +77,7 @@ func newServiceBroker() *serviceBroker {
 			case ss[i] = <-b.notifier:
 				var changed [4]bool
 				updated = [4]bool{}
-				ss[f].updateInstancesFrom(&ss[i])
+				ss[f].updateFrom(&ss[i])
 				ss[f].recalculate()
 				changed[f] = true
 				updated[f] = true
@@ -112,7 +112,7 @@ func (ss *ServiceStatus) update(o brokerOptions, ssi, ssf *ServiceStatus) bool {
 	}
 
 	if !ss.contains(ssu, o.depth()) {
-		ss.updateInstancesFrom(ssu)
+		ss.updateFrom(ssu)
 		changes = true
 	}
 
@@ -222,7 +222,7 @@ func (ss *ServiceStatus) recalculate() {
 	return
 }
 
-func (ss *ServiceStatus) updateInstancesFrom(iss *ServiceStatus) {
+func (ss *ServiceStatus) updateFrom(iss *ServiceStatus) {
 	if iss.idx > ss.idx {
 		ss.idx = iss.idx
 	}

@@ -5,33 +5,12 @@ import (
 	"time"
 )
 
+const maxApplicationDepth = 2
+
 type Application struct {
 	Services   map[string]*Service `json:"services"`
 	broker     *applicationBroker
 	brokerLock sync.Mutex
-}
-
-func (a *Application) Subscribe(full bool, depth uint8, maxStale time.Duration, onlyChanges bool) *ApplicationSubscription {
-	if a.broker == nil {
-		a.brokerLock.Lock()
-		if a.broker == nil {
-			a.broker = newApplicationBroker()
-			a.startSubscriptions()
-		}
-		a.brokerLock.Unlock()
-	}
-	r := &ApplicationSubscription{
-		C:     make(chan ApplicationStatus),
-		close: a.broker.closingClients,
-		baseSubscription: baseSubscription{
-			opts:        newBrokerOptions(full, depth).maxDepth(2),
-			maxStale:    maxStale,
-			onlyChanges: onlyChanges,
-		},
-	}
-	r.setMaxStale()
-	a.broker.newClients <- r
-	return r
 }
 
 func (a *Application) Sub(full bool, depth uint8, maxStale time.Duration, onlyChanges bool) Subscription {

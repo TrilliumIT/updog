@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+const maxServiceDepth = 1
+
 type CheckOptions struct {
 	Stype      string   `json:"type"`
 	HttpMethod string   `json:"http_method"`
@@ -19,29 +21,6 @@ type Service struct {
 	CheckOptions *CheckOptions `json:"check_options"`
 	broker       *serviceBroker
 	brokerLock   sync.Mutex
-}
-
-func (s *Service) Subscribe(full bool, depth uint8, maxStale time.Duration, onlyChanges bool) *ServiceSubscription {
-	if s.broker == nil {
-		s.brokerLock.Lock()
-		if s.broker == nil {
-			s.broker = newServiceBroker()
-			s.startSubscriptions()
-		}
-		s.brokerLock.Unlock()
-	}
-	r := &ServiceSubscription{
-		C:     make(chan ServiceStatus),
-		close: s.broker.closingClients,
-		baseSubscription: baseSubscription{
-			opts:        newBrokerOptions(full, depth).maxDepth(1),
-			maxStale:    maxStale,
-			onlyChanges: onlyChanges,
-		},
-	}
-	r.setMaxStale()
-	s.broker.newClients <- r
-	return r
 }
 
 func (s *Service) Sub(full bool, depth uint8, maxStale time.Duration, onlyChanges bool) Subscription {

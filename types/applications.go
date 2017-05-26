@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+const maxApplicationsDepth = 3
+
 type Applications struct {
 	Applications map[string]*Application
 	broker       *applicationsBroker
@@ -18,29 +20,6 @@ func (a *Applications) UnmarshalJSON(data []byte) (err error) {
 
 func (a Applications) MarshalJSON() ([]byte, error) {
 	return json.Marshal(a.Applications)
-}
-
-func (a *Applications) Subscribe(full bool, depth uint8, maxStale time.Duration, onlyChanges bool) *ApplicationsSubscription {
-	if a.broker == nil {
-		a.brokerLock.Lock()
-		if a.broker == nil {
-			a.broker = newApplicationsBroker()
-			a.startSubscriptions()
-		}
-		a.brokerLock.Unlock()
-	}
-	r := &ApplicationsSubscription{
-		C:     make(chan ApplicationsStatus),
-		close: a.broker.closingClients,
-		baseSubscription: baseSubscription{
-			opts:        newBrokerOptions(full, depth).maxDepth(3),
-			maxStale:    maxStale,
-			onlyChanges: onlyChanges,
-		},
-	}
-	r.setMaxStale()
-	a.broker.newClients <- r
-	return r
 }
 
 func (a *Applications) Sub(full bool, depth uint8, maxStale time.Duration, onlyChanges bool) Subscription {

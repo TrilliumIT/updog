@@ -12,6 +12,8 @@ import (
 	"time"
 )
 
+const maxInstanceDepth = 0
+
 func init() {
 	rand.Seed(time.Now().UnixNano())
 }
@@ -32,25 +34,6 @@ func (i *Instance) UnmarshalJSON(data []byte) (err error) {
 
 func (i Instance) MarshalJSON() ([]byte, error) {
 	return json.Marshal(i.address)
-}
-
-func (i *Instance) Subscribe(full bool, depth uint8, maxStale time.Duration, onlyChanges bool) *InstanceSubscription {
-	if i.broker == nil {
-		i.brokerLock.Lock()
-		if i.broker == nil {
-			i.broker = newInstanceBroker()
-		}
-		i.brokerLock.Unlock()
-	}
-	r := &InstanceSubscription{
-		C:     make(chan InstanceStatus),
-		close: i.broker.closingClients,
-		baseSubscription: baseSubscription{
-			onlyChanges: onlyChanges,
-		},
-	}
-	i.broker.newClients <- r
-	return r
 }
 
 func (i *Instance) Sub(full bool, depth uint8, maxStale time.Duration, onlyChanges bool) Subscription {

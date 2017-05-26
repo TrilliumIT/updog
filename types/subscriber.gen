@@ -1,7 +1,7 @@
 package types
 
 import (
-	//"time"
+	"time"
 )
 
 //genify:subr=applications,application,service,instance
@@ -15,6 +15,29 @@ type SubrSubscription struct {
 	baseSubscription
 	C     chan SubrStatus
 	close chan chan SubrStatus
+}
+
+func (s *Subr) Subscribe(full bool, depth uint8, maxStale time.Duration, onlyChanges bool) *SubrSubscription {
+	if s.broker == nil {
+		s.brokerLock.Lock()
+		if s.broker == nil {
+			s.broker = newSubrBroker()
+			s.startSubscriptions()
+		}
+		s.brokerLock.Unlock()
+	}
+	r := &SubrSubscription{
+		C:     make(chan SubrStatus),
+		close: s.broker.closingClients,
+		baseSubscription: baseSubscription{
+			opts:        newBrokerOptions(full, depth).maxDepth(maxSubrDepth),
+			maxStale:    maxStale,
+			onlyChanges: onlyChanges,
+		},
+	}
+	r.setMaxStale()
+	s.broker.newClients <- r
+	return r
 }
 
 // vim: filetype=go

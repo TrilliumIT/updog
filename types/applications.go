@@ -22,9 +22,8 @@ func (a Applications) MarshalJSON() ([]byte, error) {
 
 type ApplicationsSubscription struct {
 	baseSubscription
-	C       chan ApplicationsStatus
-	close   chan chan ApplicationsStatus
-	pending ApplicationsStatus
+	C     chan ApplicationsStatus
+	close chan chan ApplicationsStatus
 }
 
 func (a *Applications) Subscribe(full bool, depth uint8, maxStale time.Duration, onlyChanges bool) *ApplicationsSubscription {

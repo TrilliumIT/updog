@@ -13,9 +13,8 @@ type Application struct {
 
 type ApplicationSubscription struct {
 	baseSubscription
-	C       chan ApplicationStatus
-	close   chan chan ApplicationStatus
-	pending ApplicationStatus
+	C     chan ApplicationStatus
+	close chan chan ApplicationStatus
 }
 
 func (a *Application) Subscribe(full bool, depth uint8, maxStale time.Duration, onlyChanges bool) *ApplicationSubscription {

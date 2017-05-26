@@ -23,9 +23,8 @@ type Service struct {
 
 type ServiceSubscription struct {
 	baseSubscription
-	C       chan ServiceStatus
-	close   chan chan ServiceStatus
-	pending ServiceStatus
+	C     chan ServiceStatus
+	close chan chan ServiceStatus
 }
 
 func (s *Service) Subscribe(full bool, depth uint8, maxStale time.Duration, onlyChanges bool) *ServiceSubscription {

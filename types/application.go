@@ -11,12 +11,6 @@ type Application struct {
 	brokerLock sync.Mutex
 }
 
-func (a *Application) GetStatus(depth uint8) ApplicationStatus {
-	sub := a.Subscribe(true, depth, 0, false)
-	defer sub.Close()
-	return <-sub.C
-}
-
 type ApplicationSubscription struct {
 	baseSubscription
 	C       chan ApplicationStatus

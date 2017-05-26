@@ -34,13 +34,6 @@ func (i Instance) MarshalJSON() ([]byte, error) {
 	return json.Marshal(i.address)
 }
 
-func (i *Instance) GetStatus(depth uint8) InstanceStatus {
-	log.WithField("address", i.address).Debug("Getstatus")
-	s := i.Subscribe(true, depth, 0, false)
-	defer s.Close()
-	return <-s.C
-}
-
 type InstanceSubscription struct {
 	baseSubscription
 	C     chan InstanceStatus

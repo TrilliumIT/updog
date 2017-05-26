@@ -20,12 +20,6 @@ func (a Applications) MarshalJSON() ([]byte, error) {
 	return json.Marshal(a.Applications)
 }
 
-func (a *Applications) GetStatus(depth uint8) ApplicationsStatus {
-	sub := a.Subscribe(true, depth, 0, false)
-	defer sub.Close()
-	return <-sub.C
-}
-
 type ApplicationsSubscription struct {
 	baseSubscription
 	C       chan ApplicationsStatus

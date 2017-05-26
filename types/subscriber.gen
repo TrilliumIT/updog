@@ -1,8 +1,14 @@
 package types
 
 import (
-	"time"
+	//"time"
 )
 
 //genify:subr=applications,application,service,instance
+func (s *Subr) GetStatus(depth uint8) SubrStatus {
+	sub := s.Subscribe(true, depth, 0, false)
+	defer sub.Close()
+	return <-sub.C
+}
 
+// vim: filetype=go

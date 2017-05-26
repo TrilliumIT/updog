@@ -21,12 +21,6 @@ type Service struct {
 	brokerLock   sync.Mutex
 }
 
-func (s *Service) GetStatus(depth uint8) ServiceStatus {
-	sub := s.Subscribe(true, depth, 0, false)
-	defer sub.Close()
-	return <-sub.C
-}
-
 type ServiceSubscription struct {
 	baseSubscription
 	C       chan ServiceStatus

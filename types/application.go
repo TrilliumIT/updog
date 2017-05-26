@@ -11,12 +11,6 @@ type Application struct {
 	brokerLock sync.Mutex
 }
 
-type ApplicationSubscription struct {
-	baseSubscription
-	C     chan ApplicationStatus
-	close chan chan ApplicationStatus
-}
-
 func (a *Application) Subscribe(full bool, depth uint8, maxStale time.Duration, onlyChanges bool) *ApplicationSubscription {
 	if a.broker == nil {
 		a.brokerLock.Lock()

@@ -11,4 +11,10 @@ func (s *Subr) GetStatus(depth uint8) SubrStatus {
 	return <-sub.C
 }
 
+type SubrSubscription struct {
+	baseSubscription
+	C     chan SubrStatus
+	close chan chan SubrStatus
+}
+
 // vim: filetype=go

@@ -20,12 +20,6 @@ func (a Applications) MarshalJSON() ([]byte, error) {
 	return json.Marshal(a.Applications)
 }
 
-type ApplicationsSubscription struct {
-	baseSubscription
-	C     chan ApplicationsStatus
-	close chan chan ApplicationsStatus
-}
-
 func (a *Applications) Subscribe(full bool, depth uint8, maxStale time.Duration, onlyChanges bool) *ApplicationsSubscription {
 	if a.broker == nil {
 		a.brokerLock.Lock()

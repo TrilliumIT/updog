@@ -34,12 +34,6 @@ func (i Instance) MarshalJSON() ([]byte, error) {
 	return json.Marshal(i.address)
 }
 
-type InstanceSubscription struct {
-	baseSubscription
-	C     chan InstanceStatus
-	close chan chan InstanceStatus
-}
-
 func (i *Instance) Subscribe(full bool, depth uint8, maxStale time.Duration, onlyChanges bool) *InstanceSubscription {
 	if i.broker == nil {
 		i.brokerLock.Lock()

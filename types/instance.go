@@ -36,18 +36,6 @@ func (i Instance) MarshalJSON() ([]byte, error) {
 	return json.Marshal(i.address)
 }
 
-func (i *Instance) Sub(full bool, depth uint8, maxStale time.Duration, onlyChanges bool) Subscription {
-	return i.Subscribe(full, depth, maxStale, onlyChanges)
-}
-
-func (s *InstanceSubscription) Close() {
-	s.close <- s.C
-}
-
-func (s *InstanceSubscription) Next() interface{} {
-	return <-s.C
-}
-
 type InstanceStatus struct {
 	Up           bool          `json:"up"`
 	ResponseTime time.Duration `json:"response_time"`

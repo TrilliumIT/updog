@@ -22,18 +22,6 @@ func (a Applications) MarshalJSON() ([]byte, error) {
 	return json.Marshal(a.Applications)
 }
 
-func (a *Applications) Sub(full bool, depth uint8, maxStale time.Duration, onlyChanges bool) Subscription {
-	return a.Subscribe(full, depth, maxStale, onlyChanges)
-}
-
-func (a *ApplicationsSubscription) Close() {
-	a.close <- a.C
-}
-
-func (a *ApplicationsSubscription) Next() interface{} {
-	return <-a.C
-}
-
 type ApplicationsStatus struct {
 	Applications         map[string]ApplicationStatus `json:"applications"`
 	Degraded             bool                         `json:"degraded"`

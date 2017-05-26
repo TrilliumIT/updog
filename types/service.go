@@ -26,6 +26,7 @@ func (s *Service) Subscribe(full bool, depth uint8, maxStale time.Duration, only
 		s.brokerLock.Lock()
 		if s.broker == nil {
 			s.broker = newServiceBroker()
+			s.startSubscriptions()
 		}
 		s.brokerLock.Unlock()
 	}
@@ -157,20 +158,23 @@ func (ss *ServiceStatus) update(o brokerOptions, ssi, ssf *ServiceStatus) bool {
 }
 
 func (s *Service) StartChecks() {
+	if s.broker == nil {
+		s.brokerLock.Lock()
+		if s.broker == nil {
+			s.broker = newServiceBroker()
+			s.startSubscriptions()
+		}
+		s.brokerLock.Unlock()
+	}
+}
+
+func (s *Service) startSubscriptions() {
 	if s.CheckOptions == nil {
 		s.CheckOptions = &CheckOptions{}
 	}
 
 	if s.CheckOptions.Interval == 0 {
 		s.CheckOptions.Interval = Interval(10 * time.Second)
-	}
-
-	if s.broker == nil {
-		s.brokerLock.Lock()
-		if s.broker == nil {
-			s.broker = newServiceBroker()
-		}
-		s.brokerLock.Unlock()
 	}
 
 	type instanceStatusUpdate struct {

@@ -116,6 +116,9 @@ func newInstanceBroker() *instanceBroker {
 	return b
 }
 
+func (i *Instance) startSubscriptions() {
+}
+
 func (i *Instance) StartChecks(co *CheckOptions) {
 	log.WithField("Address", i.address).Debug("Starting checks")
 

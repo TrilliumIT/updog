@@ -2,8 +2,7 @@ package types
 
 import "time"
 
-//go:generate genny -in=multi.gen -out=gen-multi.go gen "Multi=Applications,Application,Service"
-//go:generate genny -in=all.gen -out=gen-all.go gen "All=Applications,Application,Service,Instance"
+//go:generate genify -in=subscriber.gen -out=gen-subscriber.go
 
 type brokerOptions uint8
 

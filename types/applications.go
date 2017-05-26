@@ -20,42 +20,6 @@ func (a Applications) MarshalJSON() ([]byte, error) {
 	return json.Marshal(a.Applications)
 }
 
-func (a *Applications) GetStatus(depth uint8) ApplicationsStatus {
-	sub := a.Subscribe(true, depth, 0, false)
-	defer sub.Close()
-	return <-sub.C
-}
-
-type ApplicationsSubscription struct {
-	baseSubscription
-	C       chan ApplicationsStatus
-	close   chan chan ApplicationsStatus
-	pending ApplicationsStatus
-}
-
-func (a *Applications) Subscribe(full bool, depth uint8, maxStale time.Duration, onlyChanges bool) *ApplicationsSubscription {
-	if a.broker == nil {
-		a.brokerLock.Lock()
-		if a.broker == nil {
-			a.broker = newApplicationsBroker()
-			a.startSubscriptions()
-		}
-		a.brokerLock.Unlock()
-	}
-	r := &ApplicationsSubscription{
-		C:     make(chan ApplicationsStatus),
-		close: a.broker.closingClients,
-		baseSubscription: baseSubscription{
-			opts:        newBrokerOptions(full, depth).maxDepth(3),
-			maxStale:    maxStale,
-			onlyChanges: onlyChanges,
-		},
-	}
-	r.setMaxStale()
-	a.broker.newClients <- r
-	return r
-}
-
 type ApplicationsStatus struct {
 	Applications         map[string]ApplicationStatus `json:"applications"`
 	Degraded             bool                         `json:"degraded"`
@@ -76,92 +40,21 @@ type ApplicationsStatus struct {
 	idx, cidx            uint64
 }
 
-func newApplicationsBroker() *applicationsBroker {
-	b := &applicationsBroker{
-		notifier:       make(chan ApplicationsStatus),
-		newClients:     make(chan *ApplicationsSubscription),
-		closingClients: make(chan chan ApplicationsStatus),
-		clients:        make(map[chan ApplicationsStatus]*ApplicationsSubscription),
-	}
-	go func() {
-		var as [8]ApplicationsStatus
-		f := newBrokerOptions(true, 3)
-		i := newBrokerOptions(false, 3)
-		for {
-			select {
-			case c := <-b.newClients:
-				b.clients[c.C] = c
-				if as[f].idx == 0 {
-					continue
-				}
-				r := newBrokerOptions(true, c.opts.depth())
-				if as[r].idx < as[f].idx {
-					as[r].update(r, &as[i], &as[f])
-				}
-				c.lastUpdate = as[r].TimeStamp
-				c.lastIdx = as[r].idx
-				go func(c chan ApplicationsStatus, as ApplicationsStatus) {
-					c <- as
-				}(c.C, as[r])
-			case c := <-b.closingClients:
-				delete(b.clients, c)
-			case as[i] = <-b.notifier:
-				as[f].updateApplicationsFrom(&as[i])
-				as[f].recalculate()
-				as[i].copySummaryFrom(&as[f])
-				for c, o := range b.clients {
-					bo := o.opts
-					if o.lastIdx == 0 {
-						bo = newBrokerOptions(true, bo.depth())
-					}
-					if as[bo].idx < as[f].idx {
-						as[o.opts].update(o.opts, &as[i], &as[f])
-					}
-					tidx := as[bo].idx
-					if o.onlyChanges {
-						tidx = as[bo].cidx
-					}
-					if tidx > o.lastIdx || as[bo].TimeStamp.Sub(o.lastUpdate) >= o.maxStale {
-						o.lastUpdate = as[bo].TimeStamp
-						o.lastIdx = as[bo].idx
-						go func(c chan ApplicationsStatus, as ApplicationsStatus) {
-							c <- as
-						}(c, as[bo])
-					}
-				}
-			}
-		}
-	}()
-	return b
-}
-
-func (as *ApplicationsStatus) update(o brokerOptions, asi, asf *ApplicationsStatus) bool {
-	changes := as.copySummaryFrom(asf)
-
-	asu := asi
-	if o.full() {
-		asu = asf
-	}
-
-	if !as.contains(asu, o.depth()) {
-		as.updateApplicationsFrom(asu)
-		changes = true
-	}
-
-	if o.depth() <= 0 {
+func (as *ApplicationsStatus) filter(depth uint8) {
+	if depth <= 0 {
 		as.Applications = map[string]ApplicationStatus{}
-		return changes
+		return
 	}
 
-	if o.depth() == 1 {
+	if depth == 1 {
 		for an, a := range as.Applications {
 			a.Services = map[string]ServiceStatus{}
 			as.Applications[an] = a
 		}
-		return changes
+		return
 	}
 
-	if o.depth() == 2 {
+	if depth == 2 {
 		for an, a := range as.Applications {
 			for sn, s := range a.Services {
 				s.Instances = map[string]InstanceStatus{}
@@ -169,8 +62,6 @@ func (as *ApplicationsStatus) update(o brokerOptions, asi, asf *ApplicationsStat
 			}
 		}
 	}
-
-	return changes
 }
 
 func (a *Applications) startSubscriptions() {
@@ -245,7 +136,7 @@ func (as *ApplicationsStatus) recalculate() {
 	}
 }
 
-func (as *ApplicationsStatus) updateApplicationsFrom(ias *ApplicationsStatus) {
+func (as *ApplicationsStatus) updateFrom(ias *ApplicationsStatus) {
 	if ias.idx > as.idx {
 		as.idx = ias.idx
 	}
@@ -257,7 +148,7 @@ func (as *ApplicationsStatus) updateApplicationsFrom(ias *ApplicationsStatus) {
 	}
 	for iian, iias := range ias.Applications {
 		aas := as.Applications[iian]
-		aas.updateServicesFrom(&iias)
+		aas.updateFrom(&iias)
 		aas.recalculate()
 		as.Applications[iian] = aas
 		if as.TimeStamp.Before(aas.TimeStamp) {

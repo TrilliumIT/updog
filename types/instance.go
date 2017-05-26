@@ -34,42 +34,6 @@ func (i Instance) MarshalJSON() ([]byte, error) {
 	return json.Marshal(i.address)
 }
 
-func (i *Instance) GetStatus() InstanceStatus {
-	log.WithField("address", i.address).Debug("Getstatus")
-	s := i.Subscribe(false)
-	defer s.Close()
-	return <-s.C
-}
-
-type InstanceSubscription struct {
-	baseSubscription
-	C     chan InstanceStatus
-	close chan chan InstanceStatus
-}
-
-func (i *Instance) Subscribe(onlyChanges bool) *InstanceSubscription {
-	if i.broker == nil {
-		i.brokerLock.Lock()
-		if i.broker == nil {
-			i.broker = newInstanceBroker()
-		}
-		i.brokerLock.Unlock()
-	}
-	r := &InstanceSubscription{
-		C:     make(chan InstanceStatus),
-		close: i.broker.closingClients,
-		baseSubscription: baseSubscription{
-			onlyChanges: onlyChanges,
-		},
-	}
-	i.broker.newClients <- r
-	return r
-}
-
-func (i *Instance) Sub(full bool, depth uint8, maxStale time.Duration, onlyChanges bool) Subscription {
-	return i.Subscribe(onlyChanges)
-}
-
 type InstanceStatus struct {
 	Up           bool          `json:"up"`
 	ResponseTime time.Duration `json:"response_time"`

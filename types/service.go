@@ -21,41 +21,6 @@ type Service struct {
 	brokerLock   sync.Mutex
 }
 
-func (s *Service) GetStatus(depth uint8) ServiceStatus {
-	sub := s.Subscribe(true, depth, 0, false)
-	defer sub.Close()
-	return <-sub.C
-}
-
-type ServiceSubscription struct {
-	baseSubscription
-	C       chan ServiceStatus
-	close   chan chan ServiceStatus
-	pending ServiceStatus
-}
-
-func (s *Service) Subscribe(full bool, depth uint8, maxStale time.Duration, onlyChanges bool) *ServiceSubscription {
-	if s.broker == nil {
-		s.brokerLock.Lock()
-		if s.broker == nil {
-			s.broker = newServiceBroker()
-		}
-		s.brokerLock.Unlock()
-	}
-	r := &ServiceSubscription{
-		C:     make(chan ServiceStatus),
-		close: s.broker.closingClients,
-		baseSubscription: baseSubscription{
-			opts:        newBrokerOptions(full, depth).maxDepth(1),
-			maxStale:    maxStale,
-			onlyChanges: onlyChanges,
-		},
-	}
-	r.setMaxStale()
-	s.broker.newClients <- r
-	return r
-}
-
 type ServiceStatus struct {
 	Instances       map[string]InstanceStatus `json:"instances"`
 	AvgResponseTime time.Duration             `json:"average_response_time"`
@@ -70,84 +35,10 @@ type ServiceStatus struct {
 	idx, cidx       uint64
 }
 
-func newServiceBroker() *serviceBroker {
-	b := &serviceBroker{
-		notifier:       make(chan ServiceStatus),
-		newClients:     make(chan *ServiceSubscription),
-		closingClients: make(chan chan ServiceStatus),
-		clients:        make(map[chan ServiceStatus]*ServiceSubscription),
-	}
-	go func() {
-		var ss [4]ServiceStatus
-		var updated [4]bool
-		f := newBrokerOptions(true, 1)
-		i := newBrokerOptions(false, 1)
-		for {
-			select {
-			case c := <-b.newClients:
-				b.clients[c.C] = c
-				if !updated[f] {
-					continue
-				}
-				r := newBrokerOptions(true, c.opts.depth())
-				if !updated[r] {
-					ss[r].update(r, &ss[i], &ss[f])
-					updated[r] = true
-				}
-				c.lastUpdate = ss[r].TimeStamp
-				go func(c chan ServiceStatus, ss ServiceStatus) {
-					c <- ss
-				}(c.C, ss[r])
-			case c := <-b.closingClients:
-				delete(b.clients, c)
-			case ss[i] = <-b.notifier:
-				var changed [4]bool
-				updated = [4]bool{}
-				ss[f].updateInstancesFrom(&ss[i])
-				ss[f].recalculate()
-				changed[f] = true
-				updated[f] = true
-				ss[i].copySummaryFrom(&ss[f])
-				changed[i] = true
-				updated[i] = true
-				// TODO return based on broker options
-				for c, o := range b.clients {
-					if !updated[o.opts] {
-						changed[o.opts] = ss[o.opts].update(o.opts, &ss[i], &ss[f])
-						updated[o.opts] = true
-					}
-					if changed[o.opts] || ss[o.opts].TimeStamp.Sub(o.lastUpdate) >= o.maxStale {
-						o.lastUpdate = ss[o.opts].TimeStamp
-						go func(c chan ServiceStatus, ss ServiceStatus) {
-							c <- ss
-						}(c, ss[o.opts])
-					}
-				}
-			}
-		}
-	}()
-	return b
-}
-
-func (ss *ServiceStatus) update(o brokerOptions, ssi, ssf *ServiceStatus) bool {
-	changes := ss.copySummaryFrom(ssf)
-
-	ssu := ssi
-	if o.full() {
-		ssu = ssf
-	}
-
-	if !ss.contains(ssu, o.depth()) {
-		ss.updateInstancesFrom(ssu)
-		changes = true
-	}
-
-	if o.depth() <= 0 {
+func (ss *ServiceStatus) filter(depth uint8) {
+	if depth <= 0 {
 		ss.Instances = map[string]InstanceStatus{}
-		return changes
 	}
-
-	return changes
 }
 
 func (s *Service) StartChecks() {
@@ -184,7 +75,7 @@ func (s *Service) StartChecks() {
 		}
 		i.StartChecks(s.CheckOptions)
 		go func(i *Instance) {
-			iSub := i.Subscribe(false)
+			iSub := i.Subscribe(true, 255, 0, false)
 			defer iSub.Close()
 			var lc time.Time
 			var ls bool
@@ -245,7 +136,7 @@ func (ss *ServiceStatus) recalculate() {
 	return
 }
 
-func (ss *ServiceStatus) updateInstancesFrom(iss *ServiceStatus) {
+func (ss *ServiceStatus) updateFrom(iss *ServiceStatus) {
 	if iss.idx > ss.idx {
 		ss.idx = iss.idx
 	}

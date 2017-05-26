@@ -41,7 +41,7 @@ func getAppStatus(parts []string, depth uint8, conf *updog.Config, w http.Respon
 	case !ok:
 		http.NotFound(w, r)
 	case inst != nil:
-		returnJson(inst.GetStatus(), w)
+		returnJson(inst.GetStatus(depth), w)
 	case svc != nil:
 		returnJson(svc.GetStatus(depth), w)
 	case app != nil:

@@ -70,14 +70,6 @@ func (i *Instance) Sub(full bool, depth uint8, maxStale time.Duration, onlyChang
 	return i.Subscribe(onlyChanges)
 }
 
-func (s *InstanceSubscription) Close() {
-	s.close <- s.C
-}
-
-func (s *InstanceSubscription) Next() interface{} {
-	return <-s.C
-}
-
 type InstanceStatus struct {
 	Up           bool          `json:"up"`
 	ResponseTime time.Duration `json:"response_time"`

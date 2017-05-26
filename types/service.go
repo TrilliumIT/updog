@@ -56,18 +56,6 @@ func (s *Service) Subscribe(full bool, depth uint8, maxStale time.Duration, only
 	return r
 }
 
-func (s *Service) Sub(full bool, depth uint8, maxStale time.Duration, onlyChanges bool) Subscription {
-	return s.Subscribe(full, depth, maxStale, onlyChanges)
-}
-
-func (s *ServiceSubscription) Close() {
-	s.close <- s.C
-}
-
-func (s *ServiceSubscription) Next() interface{} {
-	return <-s.C
-}
-
 type ServiceStatus struct {
 	Instances       map[string]InstanceStatus `json:"instances"`
 	AvgResponseTime time.Duration             `json:"average_response_time"`

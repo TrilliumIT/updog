@@ -2,6 +2,9 @@ package types
 
 import "time"
 
+//go:generate genny -in=subscriber.gen -out=gen-subscriber.go gen "SubscriberType=Applications,Application,Service SubscriptionType=ApplicationsSubscription"
+//go:generate genny -in=subscription.gen -out=gen-subscription.go gen "SubscriptionType=ApplicationsSubscription,ApplicationSubscription,ServiceSubscription,InstanceSubscription"
+
 type brokerOptions uint8
 
 func newBrokerOptions(full bool, depth uint8) brokerOptions {

@@ -1,0 +1,18 @@
+package types
+
+import (
+	"github.com/cheekybits/genny/generic"
+)
+
+//"Subscription=ApplicationsSubscription,ApplicationSubscription,ServiceSubscription,InstanceSubscription"
+type SubscriptionType generic.Type
+
+func (s *SubscriptionType) Close() {
+	s.close <- s.C
+}
+
+func (s *SubscriptionType) Next() interface{} {
+	return <-s.C
+}
+
+// vim: filetype=go

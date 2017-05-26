@@ -47,18 +47,6 @@ func (a *Application) Subscribe(full bool, depth uint8, maxStale time.Duration, 
 	return r
 }
 
-func (a *Application) Sub(full bool, depth uint8, maxStale time.Duration, onlyChanges bool) Subscription {
-	return a.Subscribe(full, depth, maxStale, onlyChanges)
-}
-
-func (a *ApplicationSubscription) Close() {
-	a.close <- a.C
-}
-
-func (a *ApplicationSubscription) Next() interface{} {
-	return <-a.C
-}
-
 type ApplicationStatus struct {
 	Services         map[string]ServiceStatus `json:"services"`
 	Degraded         bool                     `json:"degraded"`

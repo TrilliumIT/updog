@@ -70,13 +70,6 @@ type ServiceStatus struct {
 	idx, cidx       uint64
 }
 
-type serviceBroker struct {
-	notifier       chan ServiceStatus
-	newClients     chan *ServiceSubscription
-	closingClients chan chan ServiceStatus
-	clients        map[chan ServiceStatus]*ServiceSubscription
-}
-
 func newServiceBroker() *serviceBroker {
 	b := &serviceBroker{
 		notifier:       make(chan ServiceStatus),

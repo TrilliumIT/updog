@@ -1,0 +1,27 @@
+package types
+
+import (
+	"github.com/cheekybits/genny/generic"
+	"time"
+)
+
+//"All=Applications,Application,Service,Instance"
+type All generic.Type
+
+func (s *AllSubscription) Close() {
+	s.close <- s.C
+}
+
+func (s *AllSubscription) Next() interface{} {
+	return <-s.C
+}
+
+//"all=applications,application,service,instance"
+type allBroker struct {
+	notifier       chan AllStatus
+	newClients     chan *AllSubscription
+	closingClients chan chan AllStatus
+	clients        map[chan AllStatus]*AllSubscription
+}
+
+// vim: filetype=go

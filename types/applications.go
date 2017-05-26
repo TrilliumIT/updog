@@ -76,13 +76,6 @@ type ApplicationsStatus struct {
 	idx, cidx            uint64
 }
 
-type applicationsBroker struct {
-	notifier       chan ApplicationsStatus
-	newClients     chan *ApplicationsSubscription
-	closingClients chan chan ApplicationsStatus
-	clients        map[chan ApplicationsStatus]*ApplicationsSubscription
-}
-
 func newApplicationsBroker() *applicationsBroker {
 	b := &applicationsBroker{
 		notifier:       make(chan ApplicationsStatus),

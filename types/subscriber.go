@@ -2,8 +2,8 @@ package types
 
 import "time"
 
-//go:generate genny -in=subscriber.gen -out=gen-subscriber.go gen "SubscriberType=Applications,Application,Service SubscriptionType=ApplicationsSubscription"
-//go:generate genny -in=subscription.gen -out=gen-subscription.go gen "SubscriptionType=ApplicationsSubscription,ApplicationSubscription,ServiceSubscription,InstanceSubscription"
+//go:generate genny -in=multi.gen -out=gen-multi.go gen "Multi=Applications,Application,Service"
+//go:generate genny -in=all.gen -out=gen-all.go gen "All=Applications,Application,Service,Instance"
 
 type brokerOptions uint8
 

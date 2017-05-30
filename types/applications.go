@@ -42,64 +42,7 @@ type ApplicationsStatus struct {
 	idx, cidx            uint64
 }
 
-func newApplicationsBroker() *applicationsBroker {
-	b := &applicationsBroker{
-		notifier:       make(chan ApplicationsStatus),
-		newClients:     make(chan *ApplicationsSubscription),
-		closingClients: make(chan chan ApplicationsStatus),
-		clients:        make(map[chan ApplicationsStatus]*ApplicationsSubscription),
-	}
-	go func() {
-		var as [8]ApplicationsStatus
-		f := newBrokerOptions(true, 3)
-		i := newBrokerOptions(false, 3)
-		for {
-			select {
-			case c := <-b.newClients:
-				b.clients[c.C] = c
-				if as[f].idx == 0 {
-					continue
-				}
-				r := newBrokerOptions(true, c.opts.depth())
-				if as[r].idx < as[f].idx {
-					as[r].update(r, &as[i], &as[f])
-				}
-				c.lastUpdate = as[r].TimeStamp
-				c.lastIdx = as[r].idx
-				go func(c chan ApplicationsStatus, as ApplicationsStatus) {
-					c <- as
-				}(c.C, as[r])
-			case c := <-b.closingClients:
-				delete(b.clients, c)
-			case as[i] = <-b.notifier:
-				as[f].updateFrom(&as[i])
-				as[f].recalculate()
-				as[i].copySummaryFrom(&as[f])
-				for c, o := range b.clients {
-					bo := o.opts
-					if o.lastIdx == 0 {
-						bo = newBrokerOptions(true, bo.depth())
-					}
-					if as[bo].idx < as[f].idx {
-						as[o.opts].update(o.opts, &as[i], &as[f])
-					}
-					tidx := as[bo].idx
-					if o.onlyChanges {
-						tidx = as[bo].cidx
-					}
-					if tidx > o.lastIdx || as[bo].TimeStamp.Sub(o.lastUpdate) >= o.maxStale {
-						o.lastUpdate = as[bo].TimeStamp
-						o.lastIdx = as[bo].idx
-						go func(c chan ApplicationsStatus, as ApplicationsStatus) {
-							c <- as
-						}(c, as[bo])
-					}
-				}
-			}
-		}
-	}()
-	return b
-}
+const applicationsStatusVariations = 8
 
 func (as *ApplicationsStatus) update(o brokerOptions, asi, asf *ApplicationsStatus) bool {
 	changes := as.copySummaryFrom(asf)

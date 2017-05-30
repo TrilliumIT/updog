@@ -37,64 +37,7 @@ type ServiceStatus struct {
 	idx, cidx       uint64
 }
 
-func newServiceBroker() *serviceBroker {
-	b := &serviceBroker{
-		notifier:       make(chan ServiceStatus),
-		newClients:     make(chan *ServiceSubscription),
-		closingClients: make(chan chan ServiceStatus),
-		clients:        make(map[chan ServiceStatus]*ServiceSubscription),
-	}
-	go func() {
-		var ss [4]ServiceStatus
-		var updated [4]bool
-		f := newBrokerOptions(true, 1)
-		i := newBrokerOptions(false, 1)
-		for {
-			select {
-			case c := <-b.newClients:
-				b.clients[c.C] = c
-				if !updated[f] {
-					continue
-				}
-				r := newBrokerOptions(true, c.opts.depth())
-				if !updated[r] {
-					ss[r].update(r, &ss[i], &ss[f])
-					updated[r] = true
-				}
-				c.lastUpdate = ss[r].TimeStamp
-				go func(c chan ServiceStatus, ss ServiceStatus) {
-					c <- ss
-				}(c.C, ss[r])
-			case c := <-b.closingClients:
-				delete(b.clients, c)
-			case ss[i] = <-b.notifier:
-				var changed [4]bool
-				updated = [4]bool{}
-				ss[f].updateFrom(&ss[i])
-				ss[f].recalculate()
-				changed[f] = true
-				updated[f] = true
-				ss[i].copySummaryFrom(&ss[f])
-				changed[i] = true
-				updated[i] = true
-				// TODO return based on broker options
-				for c, o := range b.clients {
-					if !updated[o.opts] {
-						changed[o.opts] = ss[o.opts].update(o.opts, &ss[i], &ss[f])
-						updated[o.opts] = true
-					}
-					if changed[o.opts] || ss[o.opts].TimeStamp.Sub(o.lastUpdate) >= o.maxStale {
-						o.lastUpdate = ss[o.opts].TimeStamp
-						go func(c chan ServiceStatus, ss ServiceStatus) {
-							c <- ss
-						}(c, ss[o.opts])
-					}
-				}
-			}
-		}
-	}()
-	return b
-}
+const serviceStatusVariations = 4
 
 func (ss *ServiceStatus) update(o brokerOptions, ssi, ssf *ServiceStatus) bool {
 	changes := ss.copySummaryFrom(ssf)

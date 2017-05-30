@@ -2,6 +2,8 @@ package types
 
 import "time"
 
+//go:generate genify -in=subscriber.gen -out=gen-subscriber.go
+
 type brokerOptions uint8
 
 func newBrokerOptions(full bool, depth uint8) brokerOptions {

@@ -2,3 +2,4 @@ updog
 vendor
 config.yaml
 dashboard/bindata.go
+types/gen-*.go

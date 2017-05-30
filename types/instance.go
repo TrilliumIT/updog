@@ -12,6 +12,8 @@ import (
 	"time"
 )
 
+const maxInstanceDepth = 0
+
 func init() {
 	rand.Seed(time.Now().UnixNano())
 }
@@ -34,63 +36,12 @@ func (i Instance) MarshalJSON() ([]byte, error) {
 	return json.Marshal(i.address)
 }
 
-func (i *Instance) GetStatus() InstanceStatus {
-	log.WithField("address", i.address).Debug("Getstatus")
-	s := i.Subscribe(false)
-	defer s.Close()
-	return <-s.C
-}
-
-type InstanceSubscription struct {
-	baseSubscription
-	C     chan InstanceStatus
-	close chan chan InstanceStatus
-}
-
-func (i *Instance) Subscribe(onlyChanges bool) *InstanceSubscription {
-	if i.broker == nil {
-		i.brokerLock.Lock()
-		if i.broker == nil {
-			i.broker = newInstanceBroker()
-		}
-		i.brokerLock.Unlock()
-	}
-	r := &InstanceSubscription{
-		C:     make(chan InstanceStatus),
-		close: i.broker.closingClients,
-		baseSubscription: baseSubscription{
-			onlyChanges: onlyChanges,
-		},
-	}
-	i.broker.newClients <- r
-	return r
-}
-
-func (i *Instance) Sub(full bool, depth uint8, maxStale time.Duration, onlyChanges bool) Subscription {
-	return i.Subscribe(onlyChanges)
-}
-
-func (s *InstanceSubscription) Close() {
-	s.close <- s.C
-}
-
-func (s *InstanceSubscription) Next() interface{} {
-	return <-s.C
-}
-
 type InstanceStatus struct {
 	Up           bool          `json:"up"`
 	ResponseTime time.Duration `json:"response_time"`
 	TimeStamp    time.Time     `json:"timestamp"`
 	LastChange   time.Time     `json:"last_change"`
 	idx, cidx    uint64
-}
-
-type instanceBroker struct {
-	notifier       chan InstanceStatus
-	newClients     chan *InstanceSubscription
-	closingClients chan chan InstanceStatus
-	clients        map[chan InstanceStatus]*InstanceSubscription
 }
 
 func newInstanceBroker() *instanceBroker {
@@ -127,6 +78,9 @@ func newInstanceBroker() *instanceBroker {
 		}
 	}()
 	return b
+}
+
+func (i *Instance) startSubscriptions() {
 }
 
 func (i *Instance) StartChecks(co *CheckOptions) {

@@ -119,4 +119,21 @@ func newSubrBroker() *subrBroker {
 	return b
 }
 
+func (ss *SubrStatus) update(o brokerOptions, ssi, ssf *SubrStatus) bool {
+	changes := ss.copySummaryFrom(ssf)
+
+	ssu := ssi
+	if o.full() {
+		ssu = ssf
+	}
+
+	if !ss.contains(ssu, o.depth()) {
+		ss.updateFrom(ssu)
+		changes = true
+	}
+
+	ss.filter(o.depth())
+	return changes
+}
+
 // vim: filetype=go

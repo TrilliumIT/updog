@@ -44,22 +44,6 @@ type ApplicationsStatus struct {
 
 const applicationsStatusVariations = 8
 
-func (as *ApplicationsStatus) update(o brokerOptions, asi, asf *ApplicationsStatus) bool {
-	changes := as.copySummaryFrom(asf)
-
-	asu := asi
-	if o.full() {
-		asu = asf
-	}
-
-	if !as.contains(asu, o.depth()) {
-		as.updateFrom(asu)
-		changes = true
-	}
-	as.filter(o.depth())
-	return changes
-}
-
 func (as *ApplicationsStatus) filter(depth uint8) {
 	if depth <= 0 {
 		as.Applications = map[string]ApplicationStatus{}

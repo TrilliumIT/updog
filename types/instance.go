@@ -44,13 +44,6 @@ type InstanceStatus struct {
 	idx, cidx    uint64
 }
 
-type instanceBroker struct {
-	notifier       chan InstanceStatus
-	newClients     chan *InstanceSubscription
-	closingClients chan chan InstanceStatus
-	clients        map[chan InstanceStatus]*InstanceSubscription
-}
-
 func newInstanceBroker() *instanceBroker {
 	b := &instanceBroker{
 		notifier:       make(chan InstanceStatus),

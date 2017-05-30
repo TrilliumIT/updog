@@ -52,4 +52,11 @@ func (s *SubrSubscription) Next() interface{} {
 	return <-s.C
 }
 
+type subrBroker struct {
+	notifier       chan SubrStatus
+	newClients     chan *SubrSubscription
+	closingClients chan chan SubrStatus
+	clients        map[chan SubrStatus]*SubrSubscription
+}
+
 // vim: filetype=go

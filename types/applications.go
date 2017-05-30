@@ -56,21 +56,25 @@ func (as *ApplicationsStatus) update(o brokerOptions, asi, asf *ApplicationsStat
 		as.updateFrom(asu)
 		changes = true
 	}
+	as.filter(o.depth())
+	return changes
+}
 
-	if o.depth() <= 0 {
+func (as *ApplicationsStatus) filter(depth uint8) {
+	if depth <= 0 {
 		as.Applications = map[string]ApplicationStatus{}
-		return changes
+		return
 	}
 
-	if o.depth() == 1 {
+	if depth == 1 {
 		for an, a := range as.Applications {
 			a.Services = map[string]ServiceStatus{}
 			as.Applications[an] = a
 		}
-		return changes
+		return
 	}
 
-	if o.depth() == 2 {
+	if depth == 2 {
 		for an, a := range as.Applications {
 			for sn, s := range a.Services {
 				s.Instances = map[string]InstanceStatus{}
@@ -78,8 +82,6 @@ func (as *ApplicationsStatus) update(o brokerOptions, asi, asf *ApplicationsStat
 			}
 		}
 	}
-
-	return changes
 }
 
 func (a *Applications) startSubscriptions() {

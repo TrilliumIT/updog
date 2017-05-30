@@ -43,21 +43,23 @@ func (as *ApplicationStatus) update(o brokerOptions, asi, asf *ApplicationStatus
 		as.updateFrom(asu)
 		changes = true
 	}
+	as.filter(o.depth())
+	return changes
+}
 
-	if o.depth() <= 0 {
+func (as *ApplicationStatus) filter(depth uint8) {
+	if depth <= 0 {
 		as.Services = map[string]ServiceStatus{}
-		return changes
+		return
 	}
 
-	if o.depth() == 1 {
+	if depth == 1 {
 		for sn, s := range as.Services {
 			s.Instances = map[string]InstanceStatus{}
 			as.Services[sn] = s
 		}
-		return changes
+		return
 	}
-
-	return changes
 }
 
 func (a *Application) startSubscriptions() {

@@ -52,12 +52,15 @@ func (ss *ServiceStatus) update(o brokerOptions, ssi, ssf *ServiceStatus) bool {
 		changes = true
 	}
 
-	if o.depth() <= 0 {
-		ss.Instances = map[string]InstanceStatus{}
-		return changes
-	}
-
+	ss.filter(o.depth())
 	return changes
+}
+
+func (ss *ServiceStatus) filter(depth uint8) {
+	if depth <= 0 {
+		ss.Instances = map[string]InstanceStatus{}
+		return
+	}
 }
 
 func (s *Service) StartChecks() {

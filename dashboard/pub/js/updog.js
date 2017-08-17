@@ -111,10 +111,10 @@ function processMessage(e) {
 	header = $('.header');
 	if (!data.degraded && !data.failed && !header.hasClass('up')) {
 		header.addClass('up').removeClass('failed').removeClass('degraded');
+	} else if (!data.failed && data.degraded && !header.hasClass('degraded')) {
+		header.addClass("degraded").removeClass('failed').removeClass('up');
 	} else if (data.failed && !header.hasClass('failed')) {
 		header.addClass('failed').removeClass('degraded').removeClass('up');
-	} else if (data.degraded && !header.hasClass('degraded')) {
-		header.addClass("degraded").removeClass('failed').removeClass('up');
 	}
 
 	var aupText = data.applications_up+'/'+data.applications_total+' apps';

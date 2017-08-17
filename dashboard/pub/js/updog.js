@@ -38,6 +38,7 @@ function processMessage(e) {
 			if (serv.degraded && !serv.failed && !srvSum.hasClass("degraded")) {
 				srvTable.slideDown();
 				if (idleTime > 60 ) {
+					$.scrollTo.window().stop(true);
 					$('html, body').animate({
 						scrollTop: (appDiv.offset().top)
 					},500);
@@ -50,6 +51,7 @@ function processMessage(e) {
 			if (serv.failed && !srvSum.hasClass("failed")) {
 				srvTable.slideDown();
 				if (idleTime > 60 ) {
+					$.scrollTo.window().stop(true);
 					$('html, body').animate({
 						scrollTop: (appDiv.offset().top)
 					},500);

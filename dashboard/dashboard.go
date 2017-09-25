@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-//go:generate go-bindata -prefix "pub/" -pkg dashboard -o bindata.go pub/...
+//go:generate go-bindata -prefix "updog/" -pkg dashboard -o bindata.go updog/...
 type Dashboard struct {
 	conf *updog.Config
 }

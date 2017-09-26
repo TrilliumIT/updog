@@ -3,10 +3,6 @@ body {
 	margin: 0;
 }
 
-hr {
-	width: 100%;
-}
-
 .header {
 	background: #fff;
 	/*border-bottom: 1px solid black;*/
@@ -23,82 +19,17 @@ hr {
 	width: 24%;
 }
 
-.header .aup, .header .sup, .header .iup {
+.header .summary {
 	font-size: 0.8em;
 	text-align: center;
 }
 
-.application:first-of-type {
+.content {
 	margin-top: 4.5em;
 }
 
-.application {
-	background-color: #fff;
-	border-radius: 5px;
-	box-shadow: 2px 2px 2px #888;
-	margin: 1em;
-	padding-bottom: 1em;
-}
-
-.serv_sum {
-	cursor: hand;
-}
-
-.serv_sum:hover {
-	background: #ddddff;
-}
-
-.serv_sum > div {
-	display: inline-block;
-	font-size: 1.3em;
-	text-align: center;
-	width: 25%;
-}
-
-.serv_sum .title, .header .title {
-	text-align: left;
-}
-
-.serv_sum, .inst_table {
-	padding: 0.4em;
-}
-
-.application > .title {
-	font-size: 2em;
-	margin: 0.2em;
-}
-
-table {
-	border-collapse: collapse;
-}
-
-td {
-	border: 1px solid #888;
-}
-
-.inst_table {
-	display: none;
-}
-
-.inst_table > table {
-	margin: 1em 8em;
-}
-
-.inst_table tbody {
-	border: 1px solid #888;
-	box-shadow: 2px 2px 2px #888;
-}
-
-td, th {
-	padding: 0.5em;
-}
-
-.service {
-	border: 1px solid #888;
-	border-bottom: none;
-	box-shadow: 2px 2px 2px #888;
-	margin-left: 8em;
-	margin-right: 1em;
+.title {
+	text-align:left;
 }
 
 .failed {
@@ -113,14 +44,76 @@ td, th {
 	background: #bbeebb;
 }
 
-.inh {
-	width: 100em;
+.timestamp .tsTooltip {
+    visibility: hidden;
+    background-color: black;
+    color: #fff;
+    padding: 5px 0;
+
+    /* Position the tooltip */
+    position: absolute;
+    z-index: 1;
 }
 
-.rth, .lch {
-	width: 25em;
+.timestamp:hover .tsTooltip{
+	visibility: visible;
 }
 
-.rtd, .lcd {
-	text-align: right;
+.summary > div {
+	display:inline-block;
+	width: 18%;
+}
+
+.content> .applications> .application {
+	background-color:#fff;
+	border-radius: 5px;
+	box-shadow: 2px 2px 2px #888;
+	margin: 1em;
+	padding-bottom: 1em;
+}
+
+.content> .applications> .application> .summary {
+	font-size: 1.3em;
+	margin: 0.2em;
+}
+
+.content> .applications> .application> .summary> .title {
+	font-size: 2em;
+	margin: 0.2em;
+}
+
+.content> .applications> .application> .services> .service {
+	border:1px solid #888;
+	box-shadow: 2px 2px 2px #888;
+	margin:1em;
+}
+
+.content> .applications> .application> .services> .service> .summary {
+	cursor:hand;
+	font-size:1.3em;
+	padding:0.4em;
+}
+
+.content> .applications> .application> .services> .service> .instances {
+	display:table;
+	border-collapse:collapse;
+	margin:1em;
+	padding:0.4em;
+}
+
+.content> .applications> .application> .services> .service> .instances> .instance {
+	display:table-row-group;
+	vertical-align: middle;
+	border: 1px solid;
+	box-shadow: 2px 2px 2px #888;
+}
+
+.content> .applications> .application> .services> .service> .instances> .instance> .summary {
+	display:table-row;
+}
+
+.content> .applications> .application> .services> .service> .instances> .instance> .summary> div {
+	display:table-cell;
+	padding:0.5em;
+	border: 1px solid #888;
 }

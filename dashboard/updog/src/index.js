@@ -64,7 +64,15 @@ class Updog extends React.Component {
 			);
 		});
 
-		const content = parseData(data, this.state.mon_types)
+		const content = this.state.mon_types.map((mon_type) => {
+			return (
+				<Entries
+					mon_type={mon_type}
+					mon_types={this.state.mon_types}
+					data={data}
+				/>
+			);
+		});
 
 		let _status = "up"
 		if (data['up'] === false || data['failed'] === true) { _status = "failed" }
@@ -76,58 +84,69 @@ class Updog extends React.Component {
 				<div className="title">What's UpDog?</div>
 				{summaries}
 			</div>
-			<div className="content">{content}</div>
+			<div className="content">
+			{content}
+			</div>
 			</div>
 		);
 	}
 }
 
-ReactDOM.render(<Updog />, document.getElementById('root'));
+function Entries(props) {
+	const mon_type = props.mon_type
+	const mon_types = props.mon_types
+	const data = props.data
+	if (! data[mon_type + 's']) { return(null) }
+	const objs = Object.keys(data[mon_type + 's'] || {}).map((key) => {
+		const t = data[mon_type + 's'][key]
 
-function parseData(data, mon_types) {
-	return mon_types.map((mon_type) => {
-		if (! data[mon_type + 's']) { return(null) }
-		const objs = Object.keys(data[mon_type + 's'] || {}).map((key) => {
-			const t = data[mon_type + 's'][key]
+		let _status = "up"
+		if (t['up'] === false || t['failed'] === true) { _status = "failed" }
+		if (t['degraded'] === true) { _status = "degraded" }
 
-			let _status = "up"
-			if (t['up'] === false || t['failed'] === true) { _status = "failed" }
-			if (t['degraded'] === true) { _status = "degraded" }
+		const classes = [mon_type, _status].join(' ')
 
-			const classes = [mon_type, _status].join(' ')
-
-			const summaries = mon_types.map((mon_type) => {
-				return (
-					<Summary
-						key={key+'_' + mon_type + '_summary'}
-						mon_type={mon_type + 's'}
-						up={t[mon_type + 's_up']}
-						total={t[mon_type + 's_total']}
-					/>
-				);
-			});
-
-			const d = parseData(t, mon_types);
-
-			return(
-				<div className={mon_type}>
-					<div className={[mon_type, "summary", _status].join(' ')}>
-						<div className="title">{key}</div>
-						<div className="status">{_status}</div>
-						{summaries}
-						<ResponseTime
-							average_response_time={t.average_response_time}
-							response_time={t.response_time}
-						/>
-						<Timestamp timestamp={t.timestamp} />
-					</div>
-					{d}
-				</div>
-			)
+		const summaries = mon_types.map((mon_type) => {
+			return (
+				<Summary
+					key={key+'_' + mon_type + '_summary'}
+					mon_type={mon_type + 's'}
+					up={t[mon_type + 's_up']}
+					total={t[mon_type + 's_total']}
+				/>
+			);
 		});
-		return <div className={mon_type + "s"}>{ objs }</div>;
+
+		const d = mon_types.map((mon_type) => {
+			return (
+				<Entries
+					mon_type={mon_type}
+					mon_types={mon_types}
+					data={t}
+				/>
+			);
+		});
+
+		return(
+			<div className={mon_type}>
+				<div className={[mon_type, "summary", _status].join(' ')}>
+					<div className="title">{key}</div>
+					<div className="status">{_status}</div>
+					{summaries}
+					<ResponseTime
+						average_response_time={t.average_response_time}
+						response_time={t.response_time}
+					/>
+					<Timestamp timestamp={t.timestamp} />
+				</div>
+				{d}
+			</div>
+		)
 	});
+	return <div className={mon_type + "s"}>{ objs }</div>;
 }
+
+ReactDOM.render(<Updog />, document.getElementById('root'));
 
 function toMsFormatted(number) {
 	return (Math.round(number/10000)/100).toFixed(2);

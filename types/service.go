@@ -10,9 +10,18 @@ import (
 const maxServiceDepth = 1
 
 type CheckOptions struct {
-	Stype      string   `json:"type"`
-	HttpMethod string   `json:"http_method"`
-	Interval   Interval `json:"interval"`
+	Stype      string    `json:"type"`
+	HttpMethod string    `json:"http_method"`
+	Interval   Interval  `json:"interval"`
+	HttpOpts   *HttpOpts `json:"http_options"`
+}
+
+type HttpOpts struct {
+	HttpMethod    string `json:"http_method"`
+	SkipTLSVerify bool   `json:"skip_tls_verify"`
+	CA            string `json:"ca"`
+	ClientCert    string `json:"client_cert"`
+	ClientKey     string `json:"client_key"`
 }
 
 type Service struct {
@@ -79,6 +88,17 @@ func (s *Service) startSubscriptions() {
 				if s.CheckOptions.HttpMethod == "" {
 					s.CheckOptions.HttpMethod = "GET"
 				}
+			}
+		}
+		if s.CheckOptions.Stype == "http_status" {
+			if s.CheckOptions.HttpOpts == nil {
+				s.CheckOptions.HttpOpts = &HttpOpts{}
+			}
+			if s.CheckOptions.HttpOpts.HttpMethod == "" {
+				s.CheckOptions.HttpOpts.HttpMethod = s.CheckOptions.HttpMethod
+			}
+			if s.CheckOptions.HttpOpts.HttpMethod == "" {
+				s.CheckOptions.HttpOpts.HttpMethod = "GET"
 			}
 		}
 		i.StartChecks(s.CheckOptions)

@@ -1,6 +1,8 @@
 package types
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	log "github.com/sirupsen/logrus"
 	"io"
@@ -108,7 +110,7 @@ func (i *Instance) StartChecks(co *CheckOptions) {
 			case "tcp_connect":
 				up = tcpConnectCheck(i.address, interval)
 			case "http_status":
-				up = httpStatusCheck(co.HttpMethod, i.address, interval)
+				up = httpStatusCheck(co.HttpOpts, i.address, interval)
 			default:
 				log.WithField("type", co.Stype).Error("Unknown service type")
 				return
@@ -138,12 +140,44 @@ func tcpConnectCheck(address string, timeout time.Duration) bool {
 	return err == nil
 }
 
-func httpStatusCheck(method, address string, timeout time.Duration) bool {
-	l := log.WithFields(log.Fields{"method": method, "address": address, "timeout": timeout})
-	client := http.Client{Timeout: timeout, CheckRedirect: func(req *http.Request, via []*http.Request) error {
-		return http.ErrUseLastResponse
-	}}
-	req, err := http.NewRequest(method, address, nil)
+func httpStatusCheck(opts *HttpOpts, address string, timeout time.Duration) bool {
+	l := log.WithFields(log.Fields{"method": opts.HttpMethod, "address": address, "timeout": timeout, "skip_tls_verify": opts.SkipTLSVerify})
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: opts.SkipTLSVerify,
+	}
+
+	if opts.CA != "" {
+		rootCert := x509.NewCertPool()
+		data, err := ioutil.ReadFile(opts.CA)
+		if err != nil {
+			l.WithError(err).WithField("file", opts.CA).Error("Error reading CA file")
+		}
+		ok := rootCert.AppendCertsFromPEM(data)
+		if !ok {
+			l.Error("Error adding ca to root store")
+		}
+		tlsConfig.RootCAs = rootCert
+	}
+
+	if (opts.ClientCert != "") || (opts.ClientKey != "") {
+		clientCert, err := tls.LoadX509KeyPair(opts.ClientCert, opts.ClientKey)
+		if err != nil {
+			l.WithField("certificate", opts.ClientCert).WithField("key", opts.ClientKey).WithError(err).Error("Unable to load client tls key")
+		}
+		tlsConfig.Certificates = append(tlsConfig.Certificates, clientCert)
+	}
+
+	client := http.Client{
+		Timeout: timeout,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+		Transport: &http.Transport{
+			TLSClientConfig: tlsConfig,
+		},
+	}
+
+	req, err := http.NewRequest(opts.HttpMethod, address, nil)
 	if err != nil {
 		l.WithError(err).Error("Failed to create http request.")
 	}
@@ -151,6 +185,9 @@ func httpStatusCheck(method, address string, timeout time.Duration) bool {
 	if err == nil {
 		defer resp.Body.Close()
 		defer io.Copy(ioutil.Discard, resp.Body)
+	}
+	if err != nil {
+		l.WithError(err).Error("Error doing http request")
 	}
 	return err == nil && resp.StatusCode >= 200 && resp.StatusCode <= 399
 }

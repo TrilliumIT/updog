@@ -103,6 +103,7 @@ func (i *Instance) StartChecks(co *CheckOptions) {
 		var up, lastUp bool
 		var idx, cidx uint64
 		var start, end time.Time
+		var client *http.Client
 		for {
 			idx++
 			start = time.Now()
@@ -110,7 +111,10 @@ func (i *Instance) StartChecks(co *CheckOptions) {
 			case "tcp_connect":
 				up = tcpConnectCheck(i.address, interval)
 			case "http_status":
-				up = httpStatusCheck(co.HttpOpts, i.address, interval)
+				if client == nil {
+					client = newHttpClient(co.HttpOpts, interval)
+				}
+				up = httpStatusCheck(co.HttpOpts, i.address, client)
 			default:
 				log.WithField("type", co.Stype).Error("Unknown service type")
 				return
@@ -140,8 +144,8 @@ func tcpConnectCheck(address string, timeout time.Duration) bool {
 	return err == nil
 }
 
-func httpStatusCheck(opts *HttpOpts, address string, timeout time.Duration) bool {
-	l := log.WithFields(log.Fields{"method": opts.HttpMethod, "address": address, "timeout": timeout, "skip_tls_verify": opts.SkipTLSVerify})
+func newHttpClient(opts *HttpOpts, timeout time.Duration) *http.Client {
+	l := log.WithFields(log.Fields{"method": opts.HttpMethod, "timeout": timeout, "skip_tls_verify": opts.SkipTLSVerify})
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: opts.SkipTLSVerify,
 	}
@@ -167,7 +171,7 @@ func httpStatusCheck(opts *HttpOpts, address string, timeout time.Duration) bool
 		tlsConfig.Certificates = append(tlsConfig.Certificates, clientCert)
 	}
 
-	client := http.Client{
+	client := &http.Client{
 		Timeout: timeout,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -177,6 +181,11 @@ func httpStatusCheck(opts *HttpOpts, address string, timeout time.Duration) bool
 		},
 	}
 
+	return client
+}
+
+func httpStatusCheck(opts *HttpOpts, address string, client *http.Client) bool {
+	l := log.WithFields(log.Fields{"method": opts.HttpMethod, "address": address, "skip_tls_verify": opts.SkipTLSVerify})
 	req, err := http.NewRequest(opts.HttpMethod, address, nil)
 	if err != nil {
 		l.WithError(err).Error("Failed to create http request.")

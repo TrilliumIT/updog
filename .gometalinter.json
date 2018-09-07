@@ -1,0 +1,33 @@
+{
+  "Linters": {
+    "vet": {
+      "Command": "go vet"
+    },
+    "vetshadow": {
+      "Command": "go vet -shadow -shadowstrict"
+    }
+  },
+  "Enable": [
+    "deadcode",
+    "dupl",
+    "errcheck",
+    "goconst",
+    "goimports",
+    "golint",
+    "gotype",
+    "gotypex",
+    "ineffassign",
+    "interfacer",
+    "maligned",
+    "megacheck",
+    "misspell",
+    "nakedret",
+    "safesql",
+    "structcheck",
+    "unconvert",
+    "unparam",
+    "varcheck",
+    "vet",
+    "vetshadow"
+  ]
+}

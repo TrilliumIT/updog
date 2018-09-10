@@ -159,16 +159,15 @@ func streamJSON(subr updog.Subscriber, full bool, depth uint8, maxStale time.Dur
 
 	sub := subr.Sub(full, depth, maxStale, onlyChanges)
 
-	notify := w.(http.CloseNotifier).CloseNotify()
 	go func() {
-		<-notify
+		<-r.Context().Done()
 		sub.Close()
 	}()
 
 	for {
 		d := sub.Next()
 		select {
-		case <-notify:
+		case <-r.Context().Done():
 			return
 		default:
 		}

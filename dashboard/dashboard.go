@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/TrilliumIT/gziphandler"
+	"github.com/NYTimes/gziphandler"
 	updog "github.com/TrilliumIT/updog/types"
 	log "github.com/sirupsen/logrus"
 )
@@ -18,6 +18,8 @@ import (
 //Dashboard is the main listening web server type
 type Dashboard struct {
 	conf *updog.Config
+	ah   http.Handler
+	rh   http.Handler
 }
 
 //NewDashboard creates a new dashboard
@@ -35,6 +37,10 @@ func (d *Dashboard) Start() error {
 			log.WithField("dashboard", d).Error("Error Listening on :8081")
 		}
 	}()
+
+	d.ah = gziphandler.GzipHandler(http.HandlerFunc(d.apiHandler))
+	d.rh = gziphandler.GzipHandler(http.HandlerFunc(d.rootHandler))
+
 	return http.ListenAndServe(":8080", d)
 }
 
@@ -43,11 +49,13 @@ func (d *Dashboard) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p := strings.Trim(r.URL.Path, "/")
 	switch {
 	case strings.HasPrefix(p, "api/"):
-		gziphandler.GzipHandler(http.HandlerFunc(d.apiHandler)).ServeHTTP(w, r)
+		//gziphandler.GzipHandler(http.HandlerFunc(d.apiHandler)).ServeHTTP(w, r)
 		//http.HandlerFunc(d.apiHandler).ServeHTTP(w, r)
+		d.ah.ServeHTTP(w, r)
 	default:
-		gziphandler.GzipHandler(http.HandlerFunc(d.rootHandler)).ServeHTTP(w, r)
+		//gziphandler.GzipHandler(http.HandlerFunc(d.rootHandler)).ServeHTTP(w, r)
 		//http.HandlerFunc(d.rootHandler).ServeHTTP(w, r)
+		d.rh.ServeHTTP(w, r)
 	}
 }
 

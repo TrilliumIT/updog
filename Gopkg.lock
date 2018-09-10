@@ -16,12 +16,12 @@
   version = "0.5.0"
 
 [[projects]]
-  branch = "master"
-  digest = "1:fe6170e87c52b7c72fb27283c0e7cba58b5e304c8157223e0f0249a13f8b8570"
-  name = "github.com/TrilliumIT/gziphandler"
+  digest = "1:0803645e1f57fb5271a6edc7570b9ea59bac2e5de67957075a43f3d74c8dbd97"
+  name = "github.com/NYTimes/gziphandler"
   packages = ["."]
   pruneopts = "UT"
-  revision = "1533279d7dbf0d15a9fb2239868ffdf1820306d6"
+  revision = "2600fb119af974220d3916a5916d6e31176aac1b"
+  version = "v1.0.1"
 
 [[projects]]
   digest = "1:0594af97b2f4cec6554086eeace6597e20a4b69466eb4ada25adf9f4300dddd2"
@@ -93,7 +93,7 @@
   input-imports = [
     "bosun.org/collect",
     "bosun.org/opentsdb",
-    "github.com/TrilliumIT/gziphandler",
+    "github.com/NYTimes/gziphandler",
     "github.com/ghodss/yaml",
     "github.com/gorilla/websocket",
     "github.com/sirupsen/logrus",

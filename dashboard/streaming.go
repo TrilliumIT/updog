@@ -2,13 +2,15 @@ package dashboard
 
 import (
 	"encoding/json"
-	updog "github.com/TrilliumIT/updog/types"
-	"github.com/gorilla/websocket"
-	log "github.com/sirupsen/logrus"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	updog "github.com/TrilliumIT/updog/types"
+	"github.com/gorilla/websocket"
+	log "github.com/sirupsen/logrus"
 )
 
 func (d *Dashboard) streamingWSHandler(w http.ResponseWriter, r *http.Request) {
@@ -22,7 +24,7 @@ func (d *Dashboard) streamingPolHandler(w http.ResponseWriter, r *http.Request) 
 func (d *Dashboard) streamingHandler(w http.ResponseWriter, r *http.Request, ws bool) {
 	depth := uint64(255)
 	var err error
-	if r.URL.Query().Get("depth") != "" {
+	if r.URL.Query().Get("depth") != "" { //nolint: dupl
 		depth, err = strconv.ParseUint(r.URL.Query().Get("depth"), 10, 8)
 		if err != nil {
 			log.WithError(err).Error("Error parsing depth value")
@@ -32,7 +34,7 @@ func (d *Dashboard) streamingHandler(w http.ResponseWriter, r *http.Request, ws 
 	}
 
 	full := false
-	if r.URL.Query().Get("full") != "" {
+	if r.URL.Query().Get("full") != "" { //nolint: dupl
 		full, err = strconv.ParseBool(r.URL.Query().Get("full"))
 		if err != nil {
 			log.WithError(err).Error("Error parsing full value")
@@ -42,7 +44,7 @@ func (d *Dashboard) streamingHandler(w http.ResponseWriter, r *http.Request, ws 
 	}
 
 	refresh := time.Duration(0)
-	if r.URL.Query().Get("refresh") != "" {
+	if r.URL.Query().Get("refresh") != "" { //nolint: dupl
 		refresh, err = time.ParseDuration(r.URL.Query().Get("refresh"))
 		if err != nil {
 			log.WithError(err).Error("Error parsing refresh value")
@@ -52,7 +54,7 @@ func (d *Dashboard) streamingHandler(w http.ResponseWriter, r *http.Request, ws 
 	}
 
 	onlyChanges := false
-	if r.URL.Query().Get("only_changes") != "" {
+	if r.URL.Query().Get("only_changes") != "" { //nolint: dupl
 		onlyChanges, err = strconv.ParseBool(r.URL.Query().Get("only_changes"))
 		if err != nil {
 			log.WithError(err).Error("Error parsing only_changes value")
@@ -68,7 +70,7 @@ func (d *Dashboard) streamingHandler(w http.ResponseWriter, r *http.Request, ws 
 
 	switch parts[2] {
 	case "applications":
-		streamJson(d.conf.Applications, full, uint8(depth), refresh, onlyChanges, ws, w, r)
+		streamJSON(d.conf.Applications, full, uint8(depth), refresh, onlyChanges, ws, w, r)
 	case "application":
 		streamAppStatus(parts[3:], d.conf, full, uint8(depth), refresh, onlyChanges, ws, w, r)
 	default:
@@ -83,11 +85,11 @@ func streamAppStatus(parts []string, conf *updog.Config, full bool, depth uint8,
 	case !ok:
 		http.NotFound(w, r)
 	case inst != nil:
-		streamJson(inst, full, depth, maxStale, onlyChanges, ws, w, r)
+		streamJSON(inst, full, depth, maxStale, onlyChanges, ws, w, r)
 	case svc != nil:
-		streamJson(svc, full, depth, maxStale, onlyChanges, ws, w, r)
+		streamJSON(svc, full, depth, maxStale, onlyChanges, ws, w, r)
 	case app != nil:
-		streamJson(app, full, depth, maxStale, onlyChanges, ws, w, r)
+		streamJSON(app, full, depth, maxStale, onlyChanges, ws, w, r)
 	default:
 		http.NotFound(w, r)
 	}
@@ -98,7 +100,7 @@ var wsUpgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
-func streamJson(subr updog.Subscriber, full bool, depth uint8, maxStale time.Duration, onlyChanges, ws bool, w http.ResponseWriter, r *http.Request) {
+func streamJSON(subr updog.Subscriber, full bool, depth uint8, maxStale time.Duration, onlyChanges, ws bool, w http.ResponseWriter, r *http.Request) {
 	var process func(interface{}) error
 
 	if ws {
@@ -109,13 +111,14 @@ func streamJson(subr updog.Subscriber, full bool, depth uint8, maxStale time.Dur
 		}
 		process = func(d interface{}) error {
 			l := log.WithField("data", d)
-			wsw, err := conn.NextWriter(websocket.TextMessage)
+			var wsw io.WriteCloser
+			wsw, err = conn.NextWriter(websocket.TextMessage)
 			if err != nil {
 				// Connection closed
 				//log.WithError(err).Error("Error getting writer from ws conn")
 				return nil
 			}
-			if err := json.NewEncoder(wsw).Encode(d); err != nil {
+			if err = json.NewEncoder(wsw).Encode(d); err != nil {
 				l.WithError(err).Error("Error encoding json")
 				http.Error(w, "Failed to encode json", 500)
 				return err
@@ -134,13 +137,21 @@ func streamJson(subr updog.Subscriber, full bool, depth uint8, maxStale time.Dur
 		w.Header().Set("Connection", "keep-alive")
 		process = func(d interface{}) error {
 			l := log.WithField("data", d)
-			w.Write([]byte("data: "))
-			if err := json.NewEncoder(w).Encode(d); err != nil {
+			b, err := w.Write([]byte("data: "))
+			if err != nil {
+				return err
+			}
+			l.WithField("bytes", b).Debug("bytes written")
+			if err = json.NewEncoder(w).Encode(d); err != nil {
 				l.WithError(err).Error("Error encoding json")
 				http.Error(w, "Failed to encode json", 500)
 				return err
 			}
-			w.Write([]byte("\n\n"))
+			b, err = w.Write([]byte("\n\n"))
+			if err != nil {
+				return err
+			}
+			l.WithField("bytes", b).Debug("bytes written")
 			flusher.Flush()
 			return nil
 		}

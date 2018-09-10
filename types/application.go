@@ -7,12 +7,14 @@ import (
 
 const maxApplicationDepth = 2
 
+//Application represents a single application
 type Application struct {
 	Services   map[string]*Service `json:"services"`
 	broker     *applicationBroker
 	brokerLock sync.Mutex
 }
 
+//ApplicationStatus is the status of an application
 type ApplicationStatus struct {
 	Services         map[string]ServiceStatus `json:"services"`
 	Degraded         bool                     `json:"degraded"`
@@ -46,7 +48,7 @@ func (as *ApplicationStatus) filter(depth uint8) {
 	}
 }
 
-func (a *Application) startSubscriptions() {
+func (a *Application) startSubscriptions() { //nolint: dupl
 	type serviceStatusUpdate struct {
 		name string
 		s    ServiceStatus
@@ -108,10 +110,9 @@ func (as *ApplicationStatus) recalculate() {
 		as.InstancesUp += s.InstancesUp
 		as.InstancesFailed += s.InstancesFailed
 	}
-	return
 }
 
-func (as *ApplicationStatus) updateFrom(ias *ApplicationStatus) {
+func (as *ApplicationStatus) updateFrom(ias *ApplicationStatus) { //nolint: dupl
 	if ias.idx > as.idx {
 		as.idx = ias.idx
 	}
@@ -135,39 +136,39 @@ func (as *ApplicationStatus) updateFrom(ias *ApplicationStatus) {
 	}
 }
 
-func (ias *ApplicationStatus) copySummaryFrom(as *ApplicationStatus) bool {
-	if as.idx > ias.idx {
-		ias.idx = as.idx
+func (as *ApplicationStatus) copySummaryFrom(ias *ApplicationStatus) bool {
+	if ias.idx > as.idx {
+		as.idx = ias.idx
 	}
-	if as.cidx > ias.cidx {
-		ias.cidx = as.cidx
+	if ias.cidx > as.cidx {
+		as.cidx = ias.cidx
 	}
-	if ias.TimeStamp.Before(as.TimeStamp) {
-		ias.TimeStamp = as.TimeStamp
+	if as.TimeStamp.Before(ias.TimeStamp) {
+		as.TimeStamp = ias.TimeStamp
 	}
-	c := ias.Degraded == as.Degraded &&
-		ias.Failed == as.Failed &&
-		ias.ServicesTotal == as.ServicesTotal &&
-		ias.ServicesUp == as.ServicesUp &&
-		ias.ServicesDegraded == as.ServicesDegraded &&
-		ias.ServicesFailed == as.ServicesFailed &&
-		ias.InstancesTotal == as.InstancesTotal &&
-		ias.InstancesUp == as.InstancesUp &&
-		ias.InstancesFailed == as.InstancesFailed
+	c := as.Degraded == ias.Degraded && //nolint: dupl
+		as.Failed == ias.Failed &&
+		as.ServicesTotal == ias.ServicesTotal &&
+		as.ServicesUp == ias.ServicesUp &&
+		as.ServicesDegraded == ias.ServicesDegraded &&
+		as.ServicesFailed == ias.ServicesFailed &&
+		as.InstancesTotal == ias.InstancesTotal &&
+		as.InstancesUp == ias.InstancesUp &&
+		as.InstancesFailed == ias.InstancesFailed
 
 	if c {
 		return false
 	}
 
-	ias.Degraded = as.Degraded
-	ias.Failed = as.Failed
-	ias.ServicesTotal = as.ServicesTotal
-	ias.ServicesUp = as.ServicesUp
-	ias.ServicesDegraded = as.ServicesDegraded
-	ias.ServicesFailed = as.ServicesFailed
-	ias.InstancesTotal = as.InstancesTotal
-	ias.InstancesUp = as.InstancesUp
-	ias.InstancesFailed = as.InstancesFailed
+	as.Degraded = ias.Degraded
+	as.Failed = ias.Failed
+	as.ServicesTotal = ias.ServicesTotal
+	as.ServicesUp = ias.ServicesUp
+	as.ServicesDegraded = ias.ServicesDegraded
+	as.ServicesFailed = ias.ServicesFailed
+	as.InstancesTotal = ias.InstancesTotal
+	as.InstancesUp = ias.InstancesUp
+	as.InstancesFailed = ias.InstancesFailed
 	return true
 }
 

@@ -2,34 +2,43 @@ package dashboard
 
 import (
 	"encoding/json"
+	"mime"
+	"net/http"
+	_ "net/http/pprof" //http profiler
+	"path/filepath"
+	"strings"
+
 	"github.com/TrilliumIT/gziphandler"
 	updog "github.com/TrilliumIT/updog/types"
 	log "github.com/sirupsen/logrus"
-	"mime"
-	"net/http"
-	_ "net/http/pprof"
-	"path/filepath"
-	"strings"
 )
 
 //go:generate go-bindata -prefix "pub/" -pkg dashboard -o bindata.go pub/...
+
+//Dashboard is the main listening web server type
 type Dashboard struct {
 	conf *updog.Config
 }
 
+//NewDashboard creates a new dashboard
 func NewDashboard(conf *updog.Config) *Dashboard {
 	log.WithField("conf", conf).Info("Creating dashboard")
 	return &Dashboard{conf: conf}
 }
 
+//Start starts the dashboard
 func (d *Dashboard) Start() error {
 	log.Info("Starting dashboard listener...")
 	go func() {
-		http.ListenAndServe(":8081", nil)
+		err := http.ListenAndServe(":8081", nil)
+		if err != nil {
+			log.WithField("dashboard", d).Error("Error Listening on :8081")
+		}
 	}()
 	return http.ListenAndServe(":8080", d)
 }
 
+//ServeHTTP serves the request
 func (d *Dashboard) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p := strings.Trim(r.URL.Path, "/")
 	switch {
@@ -38,6 +47,7 @@ func (d *Dashboard) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		//http.HandlerFunc(d.apiHandler).ServeHTTP(w, r)
 	default:
 		gziphandler.GzipHandler(http.HandlerFunc(d.rootHandler)).ServeHTTP(w, r)
+		//http.HandlerFunc(d.rootHandler).ServeHTTP(w, r)
 	}
 }
 
@@ -45,7 +55,7 @@ func (d *Dashboard) apiHandler(w http.ResponseWriter, r *http.Request) {
 	p := strings.Trim(r.URL.Path, "/")
 	switch {
 	case p == "api/config":
-		returnJson(d.conf, w)
+		returnJSON(d.conf, w)
 	case p == "api/applications":
 		http.Redirect(w, r, "/api/status/applications", 301)
 	case strings.HasPrefix(p, "api/status"):
@@ -83,10 +93,15 @@ func (d *Dashboard) rootHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", mime.TypeByExtension(filepath.Ext(f.Name())))
-	w.Write(a)
+	var b int
+	b, err = w.Write(a)
+	if err != nil {
+		l.Error("Error writing content")
+	}
+	l.WithField("bytes", b).Debug("Wrote bytes")
 }
 
-func returnJson(d interface{}, w http.ResponseWriter) {
+func returnJSON(d interface{}, w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(d); err != nil {
 		log.WithError(err).WithField("d", d).Error("Error encoding json")

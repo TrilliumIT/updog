@@ -27,11 +27,7 @@
 
 [[constraint]]
   name = "bosun.org"
-  version = "0.6.0-beta1"
-
-[[constraint]]
-  branch = "master"
-  name = "github.com/TrilliumIT/gziphandler"
+  version = "0.5.0"
 
 [[constraint]]
   name = "github.com/ghodss/yaml"
@@ -39,7 +35,11 @@
 
 [[constraint]]
   name = "github.com/gorilla/websocket"
-  version = "1.1.0"
+  version = "1.4.0"
+
+[[constraint]]
+  name = "github.com/sirupsen/logrus"
+  version = "1.0.6"
 
 [prune]
   go-tests = true

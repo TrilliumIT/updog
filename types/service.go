@@ -1,29 +1,40 @@
 package types
 
 import (
-	log "github.com/sirupsen/logrus"
 	"strings"
 	"sync"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
-const maxServiceDepth = 1
+const (
+	maxServiceDepth = 1
+	//HTTPStatus represents a check type of http status
+	HTTPStatus = "http_status"
+	//TCPConnect represents a check type of tcp syn/ack
+	TCPConnect = "tcp_connect"
+)
 
+//CheckOptions represents the options for instance checks
 type CheckOptions struct {
 	Stype      string    `json:"type"`
-	HttpMethod string    `json:"http_method"`
+	HTTPMethod string    `json:"http_method"`
 	Interval   Interval  `json:"interval"`
-	HttpOpts   *HttpOpts `json:"http_options"`
+	HTTPOpts   *HTTPOpts `json:"http_options"`
 }
 
-type HttpOpts struct {
-	HttpMethod    string `json:"http_method"`
+//HTTPOpts are the http client options for checking the instances of this service
+type HTTPOpts struct {
+	HTTPMethod    string `json:"http_method"`
 	SkipTLSVerify bool   `json:"skip_tls_verify"`
 	CA            string `json:"ca"`
 	ClientCert    string `json:"client_cert"`
 	ClientKey     string `json:"client_key"`
 }
 
+//Service represents a collection of like instances on multiple hosts
+//to provide a single service in a redundant fashion
 type Service struct {
 	Instances    []*Instance   `json:"instances"`
 	MaxFailures  int           `json:"max_failures"`
@@ -32,6 +43,7 @@ type Service struct {
 	brokerLock   sync.Mutex
 }
 
+//ServiceStatus is the overall status of the Service
 type ServiceStatus struct {
 	Instances       map[string]InstanceStatus `json:"instances"`
 	AvgResponseTime time.Duration             `json:"average_response_time"`
@@ -55,6 +67,7 @@ func (ss *ServiceStatus) filter(depth uint8) {
 	}
 }
 
+//StartChecks starts checking the corresponding instances
 func (s *Service) StartChecks() {
 	if s.broker == nil {
 		s.brokerLock.Lock()
@@ -82,23 +95,23 @@ func (s *Service) startSubscriptions() {
 	updates := make(chan *instanceStatusUpdate)
 	for _, i := range s.Instances {
 		if s.CheckOptions.Stype == "" {
-			s.CheckOptions.Stype = "tcp_connect"
+			s.CheckOptions.Stype = TCPConnect
 			if strings.HasPrefix("http", i.address) {
-				s.CheckOptions.Stype = "http_status"
-				if s.CheckOptions.HttpMethod == "" {
-					s.CheckOptions.HttpMethod = "GET"
+				s.CheckOptions.Stype = HTTPStatus
+				if s.CheckOptions.HTTPMethod == "" {
+					s.CheckOptions.HTTPMethod = "GET"
 				}
 			}
 		}
-		if s.CheckOptions.Stype == "http_status" {
-			if s.CheckOptions.HttpOpts == nil {
-				s.CheckOptions.HttpOpts = &HttpOpts{}
+		if s.CheckOptions.Stype == HTTPStatus {
+			if s.CheckOptions.HTTPOpts == nil {
+				s.CheckOptions.HTTPOpts = &HTTPOpts{}
 			}
-			if s.CheckOptions.HttpOpts.HttpMethod == "" {
-				s.CheckOptions.HttpOpts.HttpMethod = s.CheckOptions.HttpMethod
+			if s.CheckOptions.HTTPOpts.HTTPMethod == "" {
+				s.CheckOptions.HTTPOpts.HTTPMethod = s.CheckOptions.HTTPMethod
 			}
-			if s.CheckOptions.HttpOpts.HttpMethod == "" {
-				s.CheckOptions.HttpOpts.HttpMethod = "GET"
+			if s.CheckOptions.HTTPOpts.HTTPMethod == "" {
+				s.CheckOptions.HTTPOpts.HTTPMethod = "GET"
 			}
 		}
 		i.StartChecks(s.CheckOptions)
@@ -128,7 +141,7 @@ func (s *Service) startSubscriptions() {
 				cidx = idx
 			}
 			l := log.WithField("name", isu.name).WithField("status", isu.s)
-			l.Debug("Recieved status update")
+			l.Debug("Received status update")
 			iss := ServiceStatus{
 				Instances:   map[string]InstanceStatus{isu.name: isu.s},
 				MaxFailures: s.MaxFailures,
@@ -161,7 +174,6 @@ func (ss *ServiceStatus) recalculate() {
 		ss.AvgResponseTime = ss.AvgResponseTime / time.Duration(ss.InstancesTotal)
 	}
 	ss.Failed = ss.InstancesFailed > ss.MaxFailures
-	return
 }
 
 func (ss *ServiceStatus) updateFrom(iss *ServiceStatus) {
@@ -186,37 +198,37 @@ func (ss *ServiceStatus) updateFrom(iss *ServiceStatus) {
 	}
 }
 
-func (iss *ServiceStatus) summaryEquals(ss *ServiceStatus) bool {
-	return iss.Degraded == ss.Degraded &&
-		iss.Failed == ss.Failed &&
-		iss.InstancesTotal == ss.InstancesTotal &&
-		iss.InstancesFailed == ss.InstancesFailed &&
-		iss.InstancesUp == ss.InstancesUp &&
-		iss.AvgResponseTime == ss.AvgResponseTime
+func (ss *ServiceStatus) summaryEquals(iss *ServiceStatus) bool {
+	return ss.Degraded == iss.Degraded &&
+		ss.Failed == iss.Failed &&
+		ss.InstancesTotal == iss.InstancesTotal &&
+		ss.InstancesFailed == iss.InstancesFailed &&
+		ss.InstancesUp == iss.InstancesUp &&
+		ss.AvgResponseTime == iss.AvgResponseTime
 }
 
-func (iss *ServiceStatus) copySummaryFrom(ss *ServiceStatus) bool {
-	if ss.idx > iss.idx {
-		iss.idx = ss.idx
+func (ss *ServiceStatus) copySummaryFrom(iss *ServiceStatus) bool {
+	if iss.idx > ss.idx {
+		ss.idx = iss.idx
 	}
-	if ss.cidx > iss.cidx {
-		iss.cidx = ss.cidx
+	if iss.cidx > ss.cidx {
+		ss.cidx = iss.cidx
 	}
-	if iss.TimeStamp.Before(ss.TimeStamp) {
-		iss.TimeStamp = ss.TimeStamp
+	if ss.TimeStamp.Before(iss.TimeStamp) {
+		ss.TimeStamp = iss.TimeStamp
 	}
-	if iss.summaryEquals(ss) {
+	if ss.summaryEquals(iss) {
 		return false
 	}
 
-	iss.Degraded = ss.Degraded
-	iss.Failed = ss.Failed
-	iss.InstancesTotal = ss.InstancesTotal
-	iss.InstancesFailed = ss.InstancesFailed
-	iss.InstancesUp = ss.InstancesUp
-	iss.AvgResponseTime = ss.AvgResponseTime
-	iss.Degraded = ss.Degraded
-	iss.Failed = ss.Failed
+	ss.Degraded = iss.Degraded
+	ss.Failed = iss.Failed
+	ss.InstancesTotal = iss.InstancesTotal
+	ss.InstancesFailed = iss.InstancesFailed
+	ss.InstancesUp = iss.InstancesUp
+	ss.AvgResponseTime = iss.AvgResponseTime
+	ss.Degraded = iss.Degraded
+	ss.Failed = iss.Failed
 	return true
 }
 

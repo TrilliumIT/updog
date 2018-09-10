@@ -4,14 +4,15 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
-	log "github.com/sirupsen/logrus"
-	"io"
 	"io/ioutil"
 	"math/rand"
 	"net"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/TrilliumIT/updog/utils"
+	log "github.com/sirupsen/logrus"
 )
 
 const maxInstanceDepth = 0
@@ -20,24 +21,29 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
+//Instance represents a single running daemon on a single host
 type Instance struct {
 	address    string
 	broker     *instanceBroker
 	brokerLock sync.Mutex
 }
 
+//Address returns the instance address
 func (i *Instance) Address() string {
 	return i.address
 }
 
+//UnmarshalJSON unmarshals the JSON bytes
 func (i *Instance) UnmarshalJSON(data []byte) (err error) {
 	return json.Unmarshal(data, &i.address)
 }
 
-func (i Instance) MarshalJSON() ([]byte, error) {
+//MarshalJSON marshals the data structure to a byte array
+func (i *Instance) MarshalJSON() ([]byte, error) {
 	return json.Marshal(i.address)
 }
 
+//InstanceStatus represents the status of the instance
 type InstanceStatus struct {
 	Up           bool          `json:"up"`
 	ResponseTime time.Duration `json:"response_time"`
@@ -85,6 +91,7 @@ func newInstanceBroker() *instanceBroker {
 func (i *Instance) startSubscriptions() {
 }
 
+//StartChecks launches a go routine to monitor the instance
 func (i *Instance) StartChecks(co *CheckOptions) {
 	log.WithField("Address", i.address).Debug("Starting checks")
 
@@ -108,13 +115,13 @@ func (i *Instance) StartChecks(co *CheckOptions) {
 			idx++
 			start = time.Now()
 			switch co.Stype {
-			case "tcp_connect":
+			case TCPConnect:
 				up = tcpConnectCheck(i.address, interval)
-			case "http_status":
+			case HTTPStatus:
 				if client == nil {
-					client = newHttpClient(co.HttpOpts, interval)
+					client = newHTTPClient(co.HTTPOpts, interval)
 				}
-				up = httpStatusCheck(co.HttpOpts, i.address, client)
+				up = httpStatusCheck(co.HTTPOpts, i.address, client)
 			default:
 				log.WithField("type", co.Stype).Error("Unknown service type")
 				return
@@ -139,13 +146,18 @@ func (i *Instance) StartChecks(co *CheckOptions) {
 func tcpConnectCheck(address string, timeout time.Duration) bool {
 	conn, err := net.DialTimeout("tcp", address, timeout)
 	if err == nil {
-		defer conn.Close()
+		defer func() {
+			err = conn.Close()
+			if err != nil {
+				log.WithError(err).Error("Error closing connection")
+			}
+		}()
 	}
 	return err == nil
 }
 
-func newHttpClient(opts *HttpOpts, timeout time.Duration) *http.Client {
-	l := log.WithFields(log.Fields{"method": opts.HttpMethod, "timeout": timeout, "skip_tls_verify": opts.SkipTLSVerify})
+func newHTTPClient(opts *HTTPOpts, timeout time.Duration) *http.Client {
+	l := log.WithFields(log.Fields{"method": opts.HTTPMethod, "timeout": timeout, "skip_tls_verify": opts})
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: opts.SkipTLSVerify,
 	}
@@ -184,16 +196,15 @@ func newHttpClient(opts *HttpOpts, timeout time.Duration) *http.Client {
 	return client
 }
 
-func httpStatusCheck(opts *HttpOpts, address string, client *http.Client) bool {
-	l := log.WithFields(log.Fields{"method": opts.HttpMethod, "address": address, "skip_tls_verify": opts.SkipTLSVerify})
-	req, err := http.NewRequest(opts.HttpMethod, address, nil)
+func httpStatusCheck(opts *HTTPOpts, address string, client *http.Client) bool {
+	l := log.WithFields(log.Fields{"method": opts.HTTPMethod, "address": address, "skip_tls_verify": opts})
+	req, err := http.NewRequest(opts.HTTPMethod, address, nil)
 	if err != nil {
 		l.WithError(err).Error("Failed to create http request.")
 	}
 	resp, err := client.Do(req)
 	if err == nil {
-		defer resp.Body.Close()
-		defer io.Copy(ioutil.Discard, resp.Body)
+		defer utils.DiscardCloseBody(resp.Body)
 	}
 	if err != nil {
 		l.WithError(err).Error("Error doing http request")

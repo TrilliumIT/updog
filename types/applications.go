@@ -8,20 +8,24 @@ import (
 
 const maxApplicationsDepth = 3
 
+//Applications represents multiple Application objects
 type Applications struct {
 	Applications map[string]*Application
 	broker       *applicationsBroker
 	brokerLock   sync.Mutex
 }
 
+//UnmarshalJSON unmarshals the JSON bytes
 func (a *Applications) UnmarshalJSON(data []byte) (err error) {
 	return json.Unmarshal(data, &a.Applications)
 }
 
-func (a Applications) MarshalJSON() ([]byte, error) {
+//MarshalJSON marshals the data structure to a byte array
+func (a *Applications) MarshalJSON() ([]byte, error) {
 	return json.Marshal(a.Applications)
 }
 
+//ApplicationsStatus is the overall status of the Application objects
 type ApplicationsStatus struct {
 	Applications         map[string]ApplicationStatus `json:"applications"`
 	Degraded             bool                         `json:"degraded"`
@@ -68,7 +72,7 @@ func (as *ApplicationsStatus) filter(depth uint8) {
 	}
 }
 
-func (a *Applications) startSubscriptions() {
+func (a *Applications) startSubscriptions() { //nolint: dupl
 	type applicationStatusUpdate struct {
 		name string
 		s    ApplicationStatus
@@ -140,7 +144,7 @@ func (as *ApplicationsStatus) recalculate() {
 	}
 }
 
-func (as *ApplicationsStatus) updateFrom(ias *ApplicationsStatus) {
+func (as *ApplicationsStatus) updateFrom(ias *ApplicationsStatus) { //nolint: dupl
 	if ias.idx > as.idx {
 		as.idx = ias.idx
 	}
@@ -164,47 +168,47 @@ func (as *ApplicationsStatus) updateFrom(ias *ApplicationsStatus) {
 	}
 }
 
-func (ias *ApplicationsStatus) copySummaryFrom(as *ApplicationsStatus) bool {
-	if as.idx > ias.idx {
-		ias.idx = as.idx
+func (as *ApplicationsStatus) copySummaryFrom(ias *ApplicationsStatus) bool {
+	if ias.idx > as.idx {
+		as.idx = ias.idx
 	}
-	if as.cidx > ias.cidx {
-		ias.cidx = as.cidx
+	if ias.cidx > as.cidx {
+		as.cidx = ias.cidx
 	}
-	if as.TimeStamp.After(ias.TimeStamp) {
-		ias.TimeStamp = as.TimeStamp
+	if ias.TimeStamp.After(as.TimeStamp) {
+		as.TimeStamp = ias.TimeStamp
 	}
-	c := ias.Degraded == as.Degraded &&
-		ias.Failed == as.Failed &&
-		ias.ApplicationsTotal == as.ApplicationsTotal &&
-		ias.ApplicationsUp == as.ApplicationsUp &&
-		ias.ApplicationsDegraded == as.ApplicationsDegraded &&
-		ias.ApplicationsFailed == as.ApplicationsFailed &&
-		ias.ServicesTotal == as.ServicesTotal &&
-		ias.ServicesUp == as.ServicesUp &&
-		ias.ServicesDegraded == as.ServicesDegraded &&
-		ias.ServicesFailed == as.ServicesFailed &&
-		ias.InstancesTotal == as.InstancesTotal &&
-		ias.InstancesUp == as.InstancesUp &&
-		ias.InstancesFailed == as.InstancesFailed
+	c := as.Degraded == ias.Degraded && //nolint: dupl
+		as.Failed == ias.Failed &&
+		as.ApplicationsTotal == ias.ApplicationsTotal &&
+		as.ApplicationsUp == ias.ApplicationsUp &&
+		as.ApplicationsDegraded == ias.ApplicationsDegraded &&
+		as.ApplicationsFailed == ias.ApplicationsFailed &&
+		as.ServicesTotal == ias.ServicesTotal &&
+		as.ServicesUp == ias.ServicesUp &&
+		as.ServicesDegraded == ias.ServicesDegraded &&
+		as.ServicesFailed == ias.ServicesFailed &&
+		as.InstancesTotal == ias.InstancesTotal &&
+		as.InstancesUp == ias.InstancesUp &&
+		as.InstancesFailed == ias.InstancesFailed
 
 	if c {
 		return false
 	}
 
-	ias.Degraded = as.Degraded
-	ias.Failed = as.Failed
-	ias.ApplicationsTotal = as.ApplicationsTotal
-	ias.ApplicationsUp = as.ApplicationsUp
-	ias.ApplicationsDegraded = as.ApplicationsDegraded
-	ias.ApplicationsFailed = as.ApplicationsFailed
-	ias.ServicesTotal = as.ServicesTotal
-	ias.ServicesUp = as.ServicesUp
-	ias.ServicesDegraded = as.ServicesDegraded
-	ias.ServicesFailed = as.ServicesFailed
-	ias.InstancesTotal = as.InstancesTotal
-	ias.InstancesUp = as.InstancesUp
-	ias.InstancesFailed = as.InstancesFailed
+	as.Degraded = ias.Degraded
+	as.Failed = ias.Failed
+	as.ApplicationsTotal = ias.ApplicationsTotal
+	as.ApplicationsUp = ias.ApplicationsUp
+	as.ApplicationsDegraded = ias.ApplicationsDegraded
+	as.ApplicationsFailed = ias.ApplicationsFailed
+	as.ServicesTotal = ias.ServicesTotal
+	as.ServicesUp = ias.ServicesUp
+	as.ServicesDegraded = ias.ServicesDegraded
+	as.ServicesFailed = ias.ServicesFailed
+	as.InstancesTotal = ias.InstancesTotal
+	as.InstancesUp = ias.InstancesUp
+	as.InstancesFailed = ias.InstancesFailed
 	return true
 }
 

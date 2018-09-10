@@ -1,17 +1,18 @@
 package dashboard
 
 import (
-	updog "github.com/TrilliumIT/updog/types"
-	log "github.com/sirupsen/logrus"
 	"net/http"
 	"strconv"
 	"strings"
+
+	updog "github.com/TrilliumIT/updog/types"
+	log "github.com/sirupsen/logrus"
 )
 
 func (d *Dashboard) statusHandler(w http.ResponseWriter, r *http.Request) {
 	depth := uint64(255)
 	var err error
-	if r.URL.Query().Get("depth") != "" {
+	if r.URL.Query().Get("depth") != "" { //nolint: dupl
 		depth, err = strconv.ParseUint(r.URL.Query().Get("depth"), 10, 8)
 		if err != nil {
 			log.WithError(err).Error("Error parsing depth value")
@@ -26,7 +27,7 @@ func (d *Dashboard) statusHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	switch parts[2] {
 	case "applications":
-		returnJson(d.conf.Applications.GetStatus(uint8(depth)), w)
+		returnJSON(d.conf.Applications.GetStatus(uint8(depth)), w)
 	case "application":
 		getAppStatus(parts[3:], uint8(depth), d.conf, w, r)
 	default:
@@ -41,11 +42,11 @@ func getAppStatus(parts []string, depth uint8, conf *updog.Config, w http.Respon
 	case !ok:
 		http.NotFound(w, r)
 	case inst != nil:
-		returnJson(inst.GetStatus(depth), w)
+		returnJSON(inst.GetStatus(depth), w)
 	case svc != nil:
-		returnJson(svc.GetStatus(depth), w)
+		returnJSON(svc.GetStatus(depth), w)
 	case app != nil:
-		returnJson(app.GetStatus(depth), w)
+		returnJSON(app.GetStatus(depth), w)
 	default:
 		http.NotFound(w, r)
 	}
@@ -55,13 +56,13 @@ func fromParts(conf *updog.Config, parts []string) (app *updog.Application, svc 
 	if len(parts) >= 1 {
 		app, ok = conf.Applications.Applications[parts[0]]
 		if !ok {
-			return
+			return app, svc, inst, ok
 		}
 	}
 	if len(parts) >= 2 {
 		svc, ok = app.Services[parts[1]]
 		if !ok {
-			return
+			return app, svc, inst, ok
 		}
 	}
 	if len(parts) >= 3 {
@@ -75,10 +76,10 @@ func fromParts(conf *updog.Config, parts []string) (app *updog.Application, svc 
 			}
 		}
 		if instanceNum < 0 || instanceNum > len(svc.Instances) {
-			return
+			return app, svc, inst, ok
 		}
 		ok = true
 		inst = svc.Instances[instanceNum]
 	}
-	return
+	return app, svc, inst, ok
 }

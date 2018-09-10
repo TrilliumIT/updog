@@ -49,7 +49,10 @@ func main() {
 			sourceHost, _ = os.Hostname()
 		}
 		tsdbClient := opentsdb.NewClient(conf.OpenTSDBAddress, map[string]string{"host": sourceHost})
-		tsdbClient.Subscribe(conf)
+		err = tsdbClient.Subscribe(conf)
+		if err != nil {
+			log.WithError(err).Fatal("Failed to subscribe")
+		}
 	}
 
 	for an, app := range conf.Applications.Applications {
@@ -61,11 +64,16 @@ func main() {
 	}
 
 	db := dashboard.NewDashboard(conf)
-	go db.Start()
+	go func() {
+		err = db.Start()
+		if err != nil {
+			log.WithError(err).Fatal("Failed to start dashboard")
+		}
+	}()
 
 	log.Println("Waiting for signal...")
 	for range sigs {
-		log.Debug("Signal Recieved")
+		log.Debug("Signal Received")
 		return
 	}
 }

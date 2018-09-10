@@ -1,26 +1,25 @@
 package opentsdb
 
 import (
-	"bosun.org/collect"
-	"bosun.org/opentsdb"
 	"bytes"
 	"fmt"
-	log "github.com/sirupsen/logrus"
-	"io"
-	"io/ioutil"
 	"net/http"
-	"sync"
 	"time"
+
+	"bosun.org/collect"
+	"bosun.org/opentsdb"
+	"github.com/TrilliumIT/updog/utils"
+	log "github.com/sirupsen/logrus"
 )
 
+//Client is an opentsdb client
 type Client struct {
 	opentsdbAddr string
 	updateChan   chan *opentsdb.DataPoint
 	tags         map[string]string
-	blockTagSet  bool
-	tagLock      sync.Mutex
 }
 
+//NewClient creates a new opentsdb client
 func NewClient(host string, tags map[string]string) *Client {
 	b := &Client{
 		opentsdbAddr: host,
@@ -62,20 +61,26 @@ func NewClient(host string, tags map[string]string) *Client {
 func sendDataPoints(dps []*opentsdb.DataPoint, addr string) error {
 	resp, err := collect.SendDataPoints(dps, addr)
 	if err == nil {
-		defer resp.Body.Close()
-		defer io.Copy(ioutil.Discard, resp.Body)
+		defer utils.DiscardCloseBody(resp.Body)
 	}
 	if err != nil {
 		return err
 	}
 	// Some problem with connecting to the server; retry later.
 	if resp.StatusCode != http.StatusNoContent {
-		buf := new(bytes.Buffer)
-		buf.ReadFrom(resp.Body)
 		l := log.WithFields(log.Fields{
 			"status code": resp.StatusCode,
-			"body":        buf.String(),
 		})
+		buf := new(bytes.Buffer)
+		var b int64
+		b, err = buf.ReadFrom(resp.Body)
+		if err != nil {
+			l.WithError(err).Error("Error reading body into buffer")
+		}
+		l = l.WithFields(log.Fields{
+			"body": buf.String(),
+		})
+		l.WithField("bytes", b).Debug("read bytes")
 		if resp.StatusCode == 400 && len(dps) > 1 { // bad datapoint, try each independently
 			for _, d := range dps {
 				err = sendDataPoints([]*opentsdb.DataPoint{d}, addr)
@@ -107,6 +112,7 @@ func (b *Client) NewClient(tags map[string]string) *Client {
 	return nb
 }
 
+//Submit sumits an update
 func (b *Client) Submit(metric string, value interface{}, timestamp time.Time) {
 	if b.opentsdbAddr == "" {
 		return

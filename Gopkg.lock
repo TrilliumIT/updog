@@ -2,82 +2,101 @@
 
 
 [[projects]]
+  digest = "1:204a850679590a0a50eb68e3a02dc628f4058a321c78d910d61e6856ae488e2c"
   name = "bosun.org"
   packages = [
     "collect",
     "metadata",
     "opentsdb",
     "slog",
-    "util"
+    "util",
   ]
-  revision = "879669a0c9ad177aa1aa439edf3b448523b982ce"
-  version = "0.6.0-beta1"
+  pruneopts = "UT"
+  revision = "00772aee8c27482893f885bbdbb10e26f75d7fd0"
+  version = "0.5.0"
 
 [[projects]]
   branch = "master"
-  name = "github.com/GROpenSourceDev/go-ntlm-auth"
-  packages = ["ntlm"]
-  revision = "6314d66e1d8ffd12a8da4be59eb4467b60dde719"
-
-[[projects]]
-  branch = "master"
+  digest = "1:fe6170e87c52b7c72fb27283c0e7cba58b5e304c8157223e0f0249a13f8b8570"
   name = "github.com/TrilliumIT/gziphandler"
   packages = ["."]
+  pruneopts = "UT"
   revision = "1533279d7dbf0d15a9fb2239868ffdf1820306d6"
 
 [[projects]]
+  digest = "1:0594af97b2f4cec6554086eeace6597e20a4b69466eb4ada25adf9f4300dddd2"
   name = "github.com/garyburd/redigo"
   packages = [
     "internal",
-    "redis"
+    "redis",
   ]
+  pruneopts = "UT"
   revision = "a69d19351219b6dd56f274f96d85a7014a2ec34e"
   version = "v1.6.0"
 
 [[projects]]
+  digest = "1:2cd7915ab26ede7d95b8749e6b1f933f1c6d5398030684e6505940a10f31cfda"
   name = "github.com/ghodss/yaml"
   packages = ["."]
+  pruneopts = "UT"
   revision = "0ca9ea5df5451ffdf184b4428c902747c2c11cd7"
   version = "v1.0.0"
 
 [[projects]]
+  digest = "1:7b5c6e2eeaa9ae5907c391a91c132abfd5c9e8a784a341b5625e750c67e6825d"
   name = "github.com/gorilla/websocket"
   packages = ["."]
+  pruneopts = "UT"
   revision = "66b9c49e59c6c48f0ffce28c2d8b8a5678502c6d"
   version = "v1.4.0"
 
 [[projects]]
+  digest = "1:d867dfa6751c8d7a435821ad3b736310c2ed68945d05b50fb9d23aee0540c8cc"
   name = "github.com/sirupsen/logrus"
   packages = ["."]
+  pruneopts = "UT"
   revision = "3e01752db0189b9157070a0e1668a620f9a85da2"
   version = "v1.0.6"
 
 [[projects]]
   branch = "master"
+  digest = "1:3f3a05ae0b95893d90b9b3b5afdb79a9b3d96e4e36e099d841ae602e4aca0da8"
   name = "golang.org/x/crypto"
   packages = ["ssh/terminal"]
+  pruneopts = "UT"
   revision = "0709b304e793a5edb4a2c0145f281ecdc20838a4"
 
 [[projects]]
   branch = "master"
+  digest = "1:2f8aa3ab99a8ca019dc7f5b89e3f1824b21f14de106461d3a93998841e763cd9"
   name = "golang.org/x/sys"
   packages = [
     "unix",
     "windows",
     "windows/svc",
-    "windows/svc/debug"
+    "windows/svc/debug",
   ]
-  revision = "8cf3aee429924738c56c34bb819c4ea8273fc434"
+  pruneopts = "UT"
+  revision = "917fdcba135dcbaccd57425db91723541b4427c8"
 
 [[projects]]
+  digest = "1:342378ac4dcb378a5448dd723f0784ae519383532f5e70ade24132c4c8693202"
   name = "gopkg.in/yaml.v2"
   packages = ["."]
+  pruneopts = "UT"
   revision = "5420a8b6744d3b0345ab293f6fcba19c978f1183"
   version = "v2.2.1"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "c8cf81daf94e968b5c92021e89e021efac841100d79b8664e8aee34de7825074"
+  input-imports = [
+    "bosun.org/collect",
+    "bosun.org/opentsdb",
+    "github.com/TrilliumIT/gziphandler",
+    "github.com/ghodss/yaml",
+    "github.com/gorilla/websocket",
+    "github.com/sirupsen/logrus",
+  ]
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -29,10 +29,12 @@ func (b brokerOptions) full() bool {
 	return b&1 == 1
 }
 
+//Subscriber is a browser that wants to stream updates
 type Subscriber interface {
 	Sub(bool, uint8, time.Duration, bool) Subscription
 }
 
+//Subscription represents the browser streaming connection
 type Subscription interface {
 	Next() interface{}
 	Close()
@@ -42,14 +44,14 @@ type baseSubscription struct {
 	opts        brokerOptions
 	onlyChanges bool
 	maxStale    time.Duration
-	lastUpdate  time.Time
-	lastIdx     uint64
+	lastUpdate  time.Time //nolint: structcheck
+	lastIdx     uint64    //nolint: structcheck
 }
 
 func (s *baseSubscription) setMaxStale() {
 	if s.maxStale == 0 {
 		// You kept a subscription open for 10 years:
 		// you're getting an update, like it or not
-		s.maxStale = time.Duration(24 * time.Hour * 3652)
+		s.maxStale = time.Hour * 24 * 3652
 	}
 }

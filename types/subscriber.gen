@@ -46,6 +46,7 @@ func (s *Subr) Sub(full bool, depth uint8, maxStale time.Duration, onlyChanges b
 
 func (s *SubrSubscription) Close() {
 	s.close <- s.C
+	close(s.C)
 }
 
 func (s *SubrSubscription) Next() interface{} {

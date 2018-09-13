@@ -38,8 +38,12 @@ func (d *Dashboard) Start() error {
 		}
 	}()
 
-	d.ah = gziphandler.GzipHandler(http.HandlerFunc(d.apiHandler))
-	d.rh = gziphandler.GzipHandler(http.HandlerFunc(d.rootHandler))
+	gzHandler, err := gziphandler.GzipHandlerWithOpts(gziphandler.MinSize(1))
+	if err != nil {
+		return err
+	}
+	d.ah = gzHandler(http.HandlerFunc(d.apiHandler))
+	d.rh = gzHandler(http.HandlerFunc(d.rootHandler))
 
 	return http.ListenAndServe(":8080", d)
 }

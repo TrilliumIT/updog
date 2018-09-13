@@ -135,11 +135,6 @@ func streamJSON(subr updog.Subscriber, full bool, depth uint8, maxStale time.Dur
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Connection", "keep-alive")
-		_, err := w.Write([]byte("\n\n"))
-		if err != nil {
-			l.WithError(err).Error("Error sending line breaks")
-			return
-		}
 		process = func(d interface{}) error {
 			l := log.WithField("data", d)
 			b, err := w.Write([]byte("data: "))

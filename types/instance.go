@@ -105,8 +105,7 @@ func (i *Instance) StartChecks(co *CheckOptions) {
 
 	interval := time.Duration(co.Interval)
 	go func() {
-		time.Sleep(time.Duration(rand.Int63n(interval.Nanoseconds())))
-		t := time.NewTicker(interval)
+		var t *time.Ticker
 		var up, lastUp bool
 		var idx, cidx uint64
 		var start, end time.Time
@@ -138,6 +137,13 @@ func (i *Instance) StartChecks(co *CheckOptions) {
 				idx:          idx,
 				cidx:         cidx,
 			})
+			// This allows the first check to run immediately, then create the ticker
+			// then continue so we don't sleep random + ticker time
+			if t == nil {
+				time.Sleep(time.Duration(rand.Int63n(interval.Nanoseconds())))
+				t = time.NewTicker(interval)
+				continue
+			}
 			<-t.C
 		}
 	}()

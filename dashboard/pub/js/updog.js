@@ -1,113 +1,87 @@
 //window.setInterval(updateApplications, 5000);
-//window.setInterval(updateTimestamps, 1000);
+window.setInterval(updateTimestamps, 1000);
 
-var jsonStream = new EventSource('/api/streaming/applications/')
+var jsonStream = new EventSource('/api/streaming/applications?only_changes=true')
 jsonStream.onmessage = processMessage
 
-var contentDiv = $('#content');
+var appStream = null
+
 var timestampUpdaters = {};
 
 function processMessage(e) {
 	var data = JSON.parse(e.data);
 	//console.log(data);
+
 	$.each(data.applications, function(an, app) {
-		var appDiv = $('#app_'+an)
+		var appDiv = $('#app_'+an);
 		if (appDiv.length == 0) {
-			contentDiv.append('<div class="application" id="app_'+an+'"><div class="title">'+an+'</div></div>');
-			appDiv = $('#app_'+an)
+			appDiv = $('#app_temp').clone().prop('id', 'app_'+an).removeClass('template');
+			appDiv.children('.title').text(an);
+			$('#content').append(appDiv);
+
+			if (window.location.hash == "#"+an) {
+				processHash();
+			}
+
 		}
+
+		var appsums = appDiv.children('.app_sum')
+
+		if (!app.degraded && !app.failed && !appsums.hasClass("up")) {
+			appsums.addClass("up");
+			appsums.removeClass('degraded').removeClass('failed');
+		}
+
+		if (app.degraded && !app.failed && !appsums.hasClass("degraded")) {
+			appsums.addClass("degraded");
+			appsums.removeClass('up').removeClass('failed');
+		}
+
+		if (app.failed && !appsums.hasClass("failed")) {
+			appsums.addClass("failed");
+			appsums.removeClass('up').removeClass('degraded');
+		}
+
+		var nupServText = app.services_up+"/"+app.services_total;
+		appsums.first().children('span').last().filter(function() {
+			return $(this).text() !== nupServText;
+		}).text(nupServText);
+
+		var nupInstText = app.instances_up+"/"+app.instances_total;
+		appsums.last().children('span').last().filter(function() {
+			return $(this).text() !== nupInstText;
+		}).text(nupInstText);
+
 		$.each(app.services, function(sn, serv) {
-			srvDiv = $('#serv_'+an+'_'+sn)
-			if (srvDiv.length == 0) {
-				appDiv.append('<div class="service" id="serv_'+an+'_'+sn+'"><div class="serv_sum"><div class="title">'+sn+'</div></div></div>');
-				srvDiv = $('#serv_'+an+'_'+sn)
-				srvDiv.find('.serv_sum').append('<div class="stat"></div><div class="nup"></div><div class="art"></div>');
-				srvDiv.append('<div class="inst_table"><hr /><table><thead><th class="inh">Instance Name</th><th class="rth">Response Time</th><th class="lch">Last Checked</th></thead><tbody></tbody></div>');
-			}
-			var srvSum = srvDiv.find('.serv_sum')
-			var srvStat = srvDiv.find('.stat')
-			var srvTable = srvDiv.children('.inst_table')
-
-			if (!serv.degraded && !serv.failed && !srvSum.hasClass("up")) {
-				srvTable.slideUp();
-				srvSum.addClass("up");
-				srvStat.text("up");
-				srvSum.removeClass('degraded').removeClass('failed');
-			}
-
-			if (serv.degraded && !serv.failed && !srvSum.hasClass("degraded")) {
-				srvTable.slideDown();
-				if (idleTime > 60 ) {
-					$.scrollTo.window().stop(true);
-					$('html, body').animate({
-						scrollTop: (appDiv.offset().top)
-					},500);
+			$.each(serv.instances, function(i, inst) {
+				var iid = jq(i);
+				var downRec = $(iid);
+				if (!inst.up && downRec.length == 0) {
+					var dr = $('#downrecs tr.template').clone().addClass("downrec").prop('id', i).removeClass("template");
+					var a = document.createElement('a');
+					a.href = i;
+					var host = a.host || i
+					dr.children('td.app_name').text(an);
+					dr.children('td.serv_name').text(sn);
+					dr.children('td.host_name').text(host.split('.')[0]);
+					dr.children('td.inst_name').text(i);
+					dr.children('td.down').children('time').attr("title", inst.last_change);
+					$('#downrecs').children('table').append(dr);
 				}
-				srvSum.addClass("degraded");
-				srvStat.text("degraded");
-				srvSum.removeClass('up').removeClass('failed');
-			}
-
-			if (serv.failed && !srvSum.hasClass("failed")) {
-				srvTable.slideDown();
-				if (idleTime > 60 ) {
-					$.scrollTo.window().stop(true);
-					$('html, body').animate({
-						scrollTop: (appDiv.offset().top)
-					},500);
+				if (inst.up && downRec.length > 0) {
+					downRec.remove();
 				}
-				srvSum.addClass("failed");
-				srvStat.text("failed");
-				srvSum.removeClass('up').removeClass('degraded');
-			}
-
-			var tot_rt = 0
-
-			$.each(serv.instances, function(iname, inst) {
-				var id = jq('inst_'+iname);
-
-				var instDiv = $(id)
-				if (instDiv.length == 0) {
-					srvDiv.find('table tbody').append('<tr class="instance" id="inst_'+iname+'"></tr>');
-					instDiv = $(id)
-				}
-				if (inst.up) {
-					instDiv.removeClass("failed");
-					instDiv.addClass("up");
-					tot_rt += inst.ResponseTime;
-				} else {
-					instDiv.removeClass("up");
-					instDiv.addClass("failed");
-				}
-
-				instDiv.html('<td class="ind">'+iname+'</td><td class="rtd">'+toMsFormatted(inst.response_time)+'</td><td class="lcd"><time title="'+inst.timestamp+'" ></time></td>');
-				var instTime = instDiv.find('time');
-				var timeStamp = moment(instTime.attr("title"))
-				instTime.text((moment().unix() - timeStamp.unix())+"s ago");
-				if (id in timestampUpdaters) {
-					clearInterval(timestampUpdaters[id]);
-				}
-				setTimeout(function() {
-					instTime.text((moment().unix() - timeStamp.unix())+"s ago");
-					timestampUpdaters[id] = setInterval(function(){
-						instTime.text((moment().unix() - timeStamp.unix())+"s ago");
-					}, 1000);
-				}, (moment.valueOf() - timeStamp.valueOf())%1000);
 			});
+		});
 
-				var artText = "no response"
-				if (serv.instances_up > 0) {
-					artText = toMsFormatted(serv.average_response_time)+"ms avg";
-				}
-				srvDiv.find('.art').filter(function() {
-					return $(this).text() !== artText
-				}).text(artText)
+		updateTimestamps();
 
-				var nupText = serv.instances_up+"/"+(serv.instances_total)+" up";
-				srvDiv.find('.nup').filter(function() {
-					return $(this).text() !== nupText
-				}).text(nupText)
-			});
+		if ($('.downrec').length > 0) {
+			$('#downrecs').show();
+		} else {
+			$('#downrecs').hide();
+		}
+
 	});
 
 	header = $('.header');
@@ -133,45 +107,118 @@ function processMessage(e) {
 	}).text(iupText)
 }
 
-var idleTime = 0;
+function processAppMessage(e) {
+	var data = JSON.parse(e.data);
 
-$(function() {
-	contentDiv = $('#content');
-	contentDiv.on("click", '.service', function(event) {
-		$(event.target).children('div.inst_table').slideToggle();
+	$.each(data.services, function(sn, serv) {
+		var servDiv = $('#serv_'+sn);
+		if (servDiv.length == 0) {
+			servDiv = $('#serv_temp').clone().prop('id', 'serv_'+sn).removeClass('template');
+			servDiv.children('.title').text(sn);
+			$('#service_list').append(servDiv);
+		}
+		$.each(serv.instances, function(ia, inst) {
+			var iajq = jq('inst_'+ia);
+			var instDiv = $(iajq)
+			if (instDiv.length == 0) {
+				instDiv = $('#inst_temp').clone().prop('id', 'inst_'+ia).removeClass('template');
+				instDiv.children('.ind').text(ia);
+				servDiv.children('.inst_table').children('table').append(instDiv);
+			}
+
+			instDiv.children('.rtd').text(toMsFormatted(inst.response_time));
+			instDiv.children('.lcd').children('time').attr('title', inst.last_change);
+
+			if (inst.up && !instDiv.hasClass("up")) {
+				instDiv.addClass("up");
+				instDiv.removeClass('failed');
+			}
+
+			if (!inst.up && !instDiv.hasClass("failed")) {
+				instDiv.addClass("failed");
+				instDiv.removeClass('up');
+			}
+		});
+
+		var servTitle = servDiv.children('.title')
+
+		if (!serv.degraded && !serv.failed && !servTitle.hasClass("up")) {
+			servTitle.addClass("up");
+			servTitle.removeClass('degraded').removeClass('failed');
+		}
+
+		if (serv.degraded && !serv.failed && !servTitle.hasClass("degraded")) {
+			servTitle.addClass("degraded");
+			servTitle.removeClass('up').removeClass('failed');
+		}
+
+		if (serv.failed && !servTitle.hasClass("failed")) {
+			servTitle.addClass("failed");
+			servTitle.removeClass('up').removeClass('degraded');
+		}
 	});
 
-	contentDiv.on("click", '.serv_sum', function(event) {
-		$(event.target).parent().trigger("click");
-	});
-	
-    //Increment the idle time counter every second.
-    var idleInterval = setInterval(timerIncrement, 1000);
-
-    //Zero the idle timer on mouse movement.
-    $(this).mousemove(function (e) {
-        idleTime = 0;
-    });
-    $(this).keypress(function (e) {
-        idleTime = 0;
-    });
-});
-
-function timerIncrement() {
-    idleTime = idleTime + 1;
+	updateTimestamps();
 }
 
-function toMsFormatted(number) {
-	return (Math.round(number/10000)/100).toFixed(2);
+//document ready function: set up handlers
+$(function() {
+	$(document).keyup(function(e) {
+		if (e.keyCode == 27) { //if esc key
+			blankHash();
+		}
+	});
+
+	$('#content').on('click', '.application', function() {
+		window.location.hash = $(this).children('.title').text();
+	});
+
+	$('#modal').click(blankHash).children().click(function() { return false; });
+	$('#modal_close').click(blankHash);
+
+	$(window).bind('hashchange', processHash);
+});
+
+function processHash() {
+	if (window.location.hash != "") {
+		var hashapp = window.location.hash.split("#")[1];
+		if (appStream == null) {
+			//subscribe to application json stream
+			appStream = new EventSource('/api/streaming/application/'+hashapp);
+			appStream.onmessage = processAppMessage;
+		} else {
+			return;
+		}
+
+		$('#modal_title').text(hashapp);
+		$('#modal').fadeIn('fast');
+	} else {
+		if (appStream != null) {
+			appStream.close();
+			appStream = null;
+			$('#modal').fadeOut('fast', function() {
+				$('#service_list').children('.service').not('.template').remove();
+			});
+		}
+	}
 }
 
 function updateTimestamps() {
-	var now = moment().unix()
-	$('time').each(function() {
-		$(this).text((now - moment($(this).attr("title")).unix())+"s ago");
+	$('time').filter(function() {
+		var since = moment($(this).attr("title")).toNow(true)
+		return $(this).text() !== since;
+	}).each(function() {
+		var since = moment($(this).attr("title")).toNow(true)
+		$(this).text(since);
 	});
 }
 
 function jq( myid ) {
-    return "#" + myid.replace( /(\/|:|\.|\[|\]|,|=|@|\?)/g, "\\$1" );
+	return "#" + myid.replace( /(\/|:|\.|\[|\]|,|=|@|\?)/g, "\\$1" );
 }
+
+function toMsFormatted(number) {
+	return (Math.round(number/10000)/100).toFixed(2) + "ms";
+}
+
+function blankHash() { window.location.hash = ""; }

@@ -135,8 +135,10 @@ func streamJSON(subr updog.Subscriber, full bool, depth uint8, maxStale time.Dur
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Connection", "keep-alive")
+		flusher.Flush()
 		process = func(d interface{}) error {
 			l := log.WithField("data", d)
+			l.Debug("processing message")
 			b, err := w.Write([]byte("data: "))
 			if err != nil {
 				return err

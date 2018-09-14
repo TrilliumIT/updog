@@ -13,7 +13,47 @@
 			<div class="sup"></div>
 			<div class="iup"></div>
 		</div>
-		<div class="content" id="content">
+		<div id="content">
+			<div id="modal" style="display:none;">
+				<div id="modal_content">
+					<div id="modal_title"></div>
+					<div id="modal_close">&times;</div>
+					<div id="service_list">
+						<div class="service template" id="serv_temp">
+							<div class="title"></div>
+							<div class="inst_table">
+								<table>
+									<tr><th class="inh">Instance Name</th><th class="rth">Response Time</th><th class="lch">For</th></tr>
+									<tr class="instance template" id="inst_temp"><td class="ind"></td><td class="rtd"></td><td class="lcd"><time></time></td></tr>
+								</table>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="template application" id="app_temp">
+				<div class="title"></div>
+				<div class="app_sum"><span>services</span><span></span></div>
+				<div class="app_sum"><span>instances</span><span></span></div>
+			</div>
+			<div id="downrecs">
+				<table>
+					<tr>
+						<th>Application</th>
+						<th>Service</th>
+						<th>Instance</th>
+						<th>Host</th>
+						<th>Down</th>
+					</tr>
+					<tr class="template failed">
+						<td class="app_name"></td>
+						<td class="serv_name"></td>
+						<td class="inst_name"></td>
+						<td class="host_name"></td>
+						<td class="down"><time></time></td>
+					</tr>
+				</table>
+			</div>
 		</div>
 	</body>
 </html>

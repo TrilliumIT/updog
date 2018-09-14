@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	//"time"
 
 	"github.com/TrilliumIT/updog/dashboard"
 	"github.com/TrilliumIT/updog/opentsdb"
@@ -16,7 +15,7 @@ import (
 )
 
 func main() {
-	var conf *updog.Config = &updog.Config{}
+	var conf = &updog.Config{}
 	var err error
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)

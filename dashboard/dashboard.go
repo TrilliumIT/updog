@@ -13,7 +13,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-//go:generate go-bindata -debug -prefix "pub/" -pkg dashboard -o bindata.go pub/...
+//go:generate go-bindata -prefix "pub/" -pkg dashboard -o bindata.go pub/...
 
 //Dashboard is the main listening web server type
 type Dashboard struct {
